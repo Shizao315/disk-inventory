@@ -107,3 +107,4 @@ jobs:
           path: |
             test-output/desktop/desktop-results.json
             test-output/desktop/embedded-desktop.png
+            test-output/desktop/embedded-scan-form.png

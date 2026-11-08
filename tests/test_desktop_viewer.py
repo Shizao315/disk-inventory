@@ -66,6 +66,8 @@ try:
     print('Embedded load finished; waiting for native bridge', flush=True)
     pump_until(lambda: js('Boolean(window.diskInventory && window.diskInventory.ready && window.diskInventoryHost)'))
     assert node_count() == '2'
+    pump_until(lambda: window.report_roots == [str(fixture)])
+    assert '历史扫描快照' in js('document.getElementById("report-context").textContent')
     checks.append('actual Qt WebEngine loaded trusted report and WebChannel')
     js('document.querySelector("#size-vrows .filename").click()')
     pump_until(lambda: clipboard.text() == "中文&'记录.txt")
@@ -98,9 +100,58 @@ try:
     checks.append('native bridge cannot navigate to remote or other local page')
     assert hashlib.sha256(report.read_bytes()).hexdigest() == original_hash
     checks.append('original report unchanged after session updates')
+    window.live.setChecked(False)
+    pump_until(lambda: not window.bridge.busy)
+    stale = fixture / 'stale.txt'
+    stale.write_bytes(b'stale record')
+    window.bridge.refresh()
+    pump_until(lambda: node_count() == '3' and not window.bridge.busy)
+    stale.unlink()
+    assert node_count() == '3'
+    window.verify_button.click()
+    pump_until(lambda: node_count() == '2' and not window.bridge.verifying)
+    assert '确认不存在并移除 1 项' in js('document.getElementById("session-state").textContent')
+    assert hashlib.sha256(report.read_bytes()).hexdigest() == original_hash
+    checks.append('page verification removed externally deleted record outside live monitoring')
+    with mock.patch.object(desktop.os, 'stat', side_effect=PermissionError(13, 'synthetic')):
+        unknown = desktop.verify_entries([{'id': 1, 'path': str(stale)}])
+    assert unknown['missing'] == [] and len(unknown['unknown']) == 1
+    checks.append('existence check does not confuse permission failure with deletion')
+    nested = fixture / 'nested'
+    nested.mkdir()
+    old_nested = nested / 'deleted-before-rescan.txt'
+    old_nested.write_bytes(b'nested')
+    before_windows = {id(w) for w in app.topLevelWidgets() if w.isVisible()}
+    window.scan_button.click()
+    assert window.stack.currentWidget() is window.scan_panel
+    assert {id(w) for w in app.topLevelWidgets() if w.isVisible()} == before_windows
+    window.grab().save(str(OUT / 'embedded-scan-form.png'))
+    checks.append('scan toolbar opens form inside same window without another top-level window')
+    baseline = OUT / ('embedded-baseline-' + fixture.name + '.html')
+    window.scan_output.setText(str(baseline))
+    window.scan_start.click()
+    pump_until(lambda: not window.scan_busy and window.loaded_report == str(baseline))
+    pump_until(lambda: js('Boolean(window.diskInventory&&window.diskInventory.ready)'))
+    assert node_count() == '3'
+    assert window.stack.currentWidget() is window.view
+    assert '本次重新扫描结果' in js('document.getElementById("report-context").textContent')
+    assert window.loaded_report == window.original_report
+    checks.append('embedded start button actually scans and shows fresh report in same window')
+    old_nested.unlink()
+    window.scan_button.click()
+    fresh = OUT / ('embedded-fresh-' + fixture.name + '.html')
+    window.scan_output.setText(str(fresh))
+    window.scan_start.click()
+    pump_until(lambda: not window.scan_busy and window.loaded_report == str(fresh))
+    pump_until(lambda: js('Boolean(window.diskInventory&&window.diskInventory.ready)'))
+    assert node_count() == '2'
+    assert not js('document.getElementById("size-vrows").textContent.includes("deleted-before-rescan.txt")')
+    assert {id(w) for w in app.topLevelWidgets() if w.isVisible()} == before_windows
+    nested.rmdir()
+    checks.append('real rescan removed previously indexed deleted nested file; no extra window')
     # Only synthetic paths appear in this verification screenshot.
     window.grab().save(str(OUT / 'embedded-desktop.png'))
-    (OUT / 'desktop-results.json').write_text(json.dumps({'status':'PASS','checks':checks,'source_report_sha256':original_hash,'watch_scope':'current directory only','original_unchanged':True}, indent=2), encoding='utf-8')
+    (OUT / 'desktop-results.json').write_text(json.dumps({'status':'PASS','checks':checks,'source_report_sha256':original_hash,'watch_scope':'current directory only','verification_scope':'current page only','scan_ui':'same window','original_unchanged':True}, indent=2), encoding='utf-8')
     print(json.dumps({'status':'PASS','checks':checks}))
 finally:
     window.live.setChecked(False)

@@ -7,9 +7,9 @@ if not defined DI_PYTHONW if exist "%USERPROFILE%\anaconda3\pythonw.exe" set "DI
 if not defined DI_PYTHONW for /f "delims=" %%P in ('where pythonw.exe 2^>nul') do if not defined DI_PYTHONW set "DI_PYTHONW=%%P"
 if not defined DI_PYTHONW (
     echo Python 3 with Tkinter was not found.
-    echo Run: python tools\desktop_viewer.py --latest
+    echo Run: python tools\desktop_viewer.py
     pause
     exit /b 1
 )
-start "DiskInventory Desktop" "%DI_PYTHONW%" "%~dp0tools\desktop_viewer.py" --latest
+start "DiskInventory Desktop" "%DI_PYTHONW%" "%~dp0tools\desktop_viewer.py"
 endlocal
