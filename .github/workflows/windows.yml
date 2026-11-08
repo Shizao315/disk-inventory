@@ -76,9 +76,11 @@ jobs:
             test-output/integration-results.json
             test-output/browser-results.json
             test-output/report-desktop.png
+            test-output/folder-ranking.png
             test-output/dev/dev-integration-results.json
             test-output/dev/browser-results.json
             test-output/dev/report-desktop.png
+            test-output/dev/folder-ranking.png
 
   desktop-prototype:
     runs-on: windows-2022
@@ -108,3 +110,4 @@ jobs:
             test-output/desktop/desktop-results.json
             test-output/desktop/embedded-desktop.png
             test-output/desktop/embedded-scan-form.png
+            test-output/desktop/embedded-folder-ranking.png

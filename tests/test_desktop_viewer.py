@@ -58,7 +58,13 @@ def node_count():
     return js('document.getElementById("file-count").textContent')
 
 
-checks = []
+class Checks(list):
+    def append(self, value):
+        super().append(value)
+        print('PASS: ' + value, flush=True)
+
+
+checks = Checks()
 try:
     print('Waiting for real embedded page load', flush=True)
     pump_until(lambda: bool(loaded_states))
@@ -69,8 +75,15 @@ try:
     pump_until(lambda: window.report_roots == [str(fixture)])
     assert '历史扫描快照' in js('document.getElementById("report-context").textContent')
     checks.append('actual Qt WebEngine loaded trusted report and WebChannel')
+    print('Synthetic first filename:', js('document.querySelector("#size-vrows .filename").textContent'), flush=True)
     js('document.querySelector("#size-vrows .filename").click()')
-    pump_until(lambda: clipboard.text() == "中文&'记录.txt")
+    try:
+        pump_until(lambda: clipboard.text() == "中文&'记录.txt", timeout=8)
+    except AssertionError:
+        print('Clipboard diagnostic:', js('JSON.stringify({toast:document.getElementById("toast").textContent,copyType:typeof window.diskInventoryHost.copyText,name:document.querySelector("#size-vrows .filename").textContent})'), flush=True)
+        assert window.bridge.copyText("中文&'记录.txt"), 'Native clipboard adapter rejected text'
+        print('Direct adapter readback matched:', clipboard.text() == "中文&'记录.txt", flush=True)
+        raise
     checks.append('actual name click reached Windows clipboard')
     with mock.patch.object(desktop.os, 'startfile') as opened:
         js('document.querySelector("#size-vrows .reveal").click()')
@@ -137,6 +150,15 @@ try:
     assert '本次重新扫描结果' in js('document.getElementById("report-context").textContent')
     assert window.loaded_report == window.original_report
     checks.append('embedded start button actually scans and shows fresh report in same window')
+    js('document.querySelector("button[data-mode=folders]").click()')
+    assert js('document.querySelector("#dirrank-vrows .row").dataset.totalBytes') == '6'
+    assert js('document.querySelector("#dirrank-vrows .row").dataset.matchedBytes') == '6'
+    js('document.getElementById("min-size").value="1048576";document.getElementById("min-size").dispatchEvent(new Event("change"))')
+    assert js('document.querySelector("#dirrank-vrows .row").dataset.totalBytes') == '6'
+    assert js('document.querySelector("#dirrank-vrows .row").dataset.matchedBytes') == '0'
+    window.grab().save(str(OUT / 'embedded-folder-ranking.png'))
+    checks.append('embedded folder ranking keeps recursive total independent of minimum-size filter')
+    js('document.getElementById("clear-filter").click();document.querySelector("button[data-mode=split]").click()')
     old_nested.unlink()
     window.scan_button.click()
     fresh = OUT / ('embedded-fresh-' + fixture.name + '.html')

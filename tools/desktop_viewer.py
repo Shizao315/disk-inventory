@@ -186,8 +186,10 @@ class Bridge(QObject):
     def copyText(self, value):
         if len(value) > 65536:
             return False
-        QApplication.clipboard().setText(value)
-        return True
+        clipboard = QApplication.clipboard()
+        clipboard.setText(value)
+        # Do not acknowledge a failed/changed clipboard write as success.
+        return clipboard.text() == value
 
     @Slot(str, result=bool)
     def revealPath(self, value):
