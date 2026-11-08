@@ -1,0 +1,2 @@
+# Optional interface prototype only; not a dependency of the native EXE.
+PySide6==6.9.2

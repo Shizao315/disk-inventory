@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -78,10 +79,11 @@ class SourceScannerTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        # Keep bounded fixtures/reports for review, but do not leave a 5-GiB
-        # logical file in a potentially synchronized workspace.
-        if cls.big.parent == cls.root and cls.big.name == 'large-sparse.bin':
-            cls.big.unlink(missing_ok=True)
+        # Reports keep the synthetic metadata; remove only this test's own
+        # fixture so sparse files/junctions never remain for OneDrive to sync.
+        assert cls.root.parent == OUT and cls.root.name.startswith('fixture-')
+        assert cls.root.name[8:].isdigit() and cls.root.resolve() == cls.root
+        shutil.rmtree(dev.native(cls.root))
 
     def test_hidden_filter_and_parent_relationships(self):
         visible, hidden = records(self.visible), records(self.hidden)

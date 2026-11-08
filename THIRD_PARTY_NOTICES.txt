@@ -1,3 +1,12 @@
+Optional source desktop prototype
+---------------------------------
+PySide6 / Qt WebEngine 6.9.2 is an optional, separately installed dependency.
+Qt for Python: https://doc.qt.io/qtforpython-6/
+Licensing: LGPLv3/GPLv3 or commercial terms, as applicable to each component.
+This source package does not redistribute Qt/PySide6/Chromium binaries; their
+licenses remain with their respective distributions. The native scanner EXE
+does not link Qt.
+
 Third-party toolchain/runtime notices. The compiler itself is not bundled.
 
 === Zig and compiler runtime ===

@@ -15,6 +15,21 @@ const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFile
   await page.goto(pathToFileURL(report).href);
   await page.waitForFunction(()=>document.getElementById('loading').hidden);
   const sourceVersion=await page.locator('#scan-data').evaluate(el=>JSON.parse(el.textContent).version);
+  const viewportLayout=await page.locator('#size-vport').evaluate(el=>({width:el.clientWidth,scrollWidth:el.scrollWidth,bar:getComputedStyle(el,'::-webkit-scrollbar').width,panel:document.getElementById('ranking').clientWidth}));
+  assert.equal(viewportLayout.bar,'24px');assert(viewportLayout.width<viewportLayout.panel);assert(viewportLayout.scrollWidth>viewportLayout.width);
+  await page.evaluate(()=>{window.copied=[];window.revealed=[];window.diskInventoryHost={copyText:(text,callback)=>{window.copied.push(text);callback(true);},revealPath:(text,callback)=>{window.revealed.push(text);callback(true);},directorySelected:()=>{}};});
+  await page.locator('#size-vrows .filename').first().click();
+  assert.equal(await page.evaluate(()=>window.copied.at(-1)),'large-sparse.bin');
+  await page.locator('#size-vrows .path').first().click();
+  assert((await page.evaluate(()=>window.copied.at(-1))).endsWith('large-sparse.bin'));
+  await page.locator('#size-vrows .reveal').first().click();
+  assert((await page.evaluate(()=>window.revealed.at(-1))).endsWith('large-sparse.bin'));
+  await page.evaluate(()=>{delete window.diskInventoryHost;});
+  await page.locator('#size-vrows .reveal').first().click();
+  assert(await page.locator('#location-dialog').isVisible());
+  assert((await page.locator('#open-folder').getAttribute('href')).startsWith('file:///'));
+  await page.locator('#location-close').click();
+  await page.locator('#size-vport').evaluate(el=>{el.scrollLeft=0;});
   assert.equal(await page.locator('#file-count').innerText(),'6');
   assert((await page.locator('#size-vrows .filename').first().innerText()).includes('large-sparse.bin'));
   await page.locator('#sort-size').click();
@@ -58,8 +73,23 @@ const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFile
   await page.locator('#size-vport').evaluate(el=>{el.scrollTop=el.scrollHeight;});
   await page.waitForTimeout(100);
   assert((await page.locator('#size-vrows .row').last().innerText()).includes('item-0.bin'));
+  // The desktop host supplies one fresh directory, never a repeated full scan.
+  // Check deletion/addition/metadata changes, totals and immutable report JSON.
+  const rawBefore=await page.locator('#scan-data').textContent();
+  await page.evaluate(()=>window.diskInventory.applyDirectorySnapshot({directory:'C:\\Synthetic',error:null,entries:[[-1,'item-0.bin',false,'90000',null,null,0,'ok',0,true],[-1,'new.bin',false,'7',null,null,0,'ok',0,true]]}));
+  assert.equal(await page.locator('#file-count').innerText(),'2');
+  assert.equal(await page.locator('#size-vrows .filename').first().innerText(),'item-0.bin');
+  assert.equal(await page.locator('#scan-data').textContent(),rawBefore);
+  await page.evaluate(()=>window.diskInventory.applyDirectorySnapshot({directory:'C:\\Synthetic',error:'Access denied',entries:[]}));
+  assert.equal(await page.locator('#file-count').innerText(),'2');
+  await page.evaluate(()=>window.diskInventory.applyDirectorySnapshot({directory:'C:\\SomeOtherFolder',error:null,entries:[]}));
+  assert.equal(await page.locator('#file-count').innerText(),'2');
+  assert((await page.locator('#session-state').innerText()).includes('原始 HTML 保持不变'));
+  await page.evaluate(()=>window.diskInventory.applyDirectorySnapshot({directory:'C:\\Synthetic',error:null,entries:Array.from({length:20001},(_,i)=>[-1,'overflow-'+i,false,'1',null,null,0,'ok',0,true])}));
+  assert.equal(await page.locator('#file-count').innerText(),'2');
+  assert((await page.locator('#toast').innerText()).includes('达到上限'));
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-  fs.writeFileSync(path.join(out,'browser-results.json'),JSON.stringify({status:'PASS',scope:replay?'final HTML template replay with earlier real scan data':sourceVersion.includes('dev-python')?'Python source scanner-generated report':'native executable-generated report',source_version:sourceVersion,template_sha256:require('crypto').createHash('sha256').update(template).digest('hex'),browser:await browser.version(),externalRequests:external.length,pageErrors:errors,checks:['size numeric order','mode switching','locate directory','folder navigation/back/forward','filter','file details/local URL','12001-record virtualization and full pagination']},null,2));
+  fs.writeFileSync(path.join(out,'browser-results.json'),JSON.stringify({status:'PASS',scope:replay?'final HTML template replay with earlier real scan data':sourceVersion.includes('dev-python')?'Python source scanner-generated report':'native executable-generated report',source_version:sourceVersion,template_sha256:require('crypto').createHash('sha256').update(template).digest('hex'),browser:await browser.version(),externalRequests:external.length,pageErrors:errors,checks:['size numeric order','mode switching','locate directory','folder navigation/back/forward','filter','file details/local URL','12001-record virtualization and full pagination','click to copy','native reveal bridge/offline fallback','24px scrollbars and reachable vertical scrolling','session deletion/addition/metadata and immutable report','failed/stale refresh preserves records']},null,2));
   console.log('Browser report checks: PASS');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import queue
 import stat
+import subprocess
 import sys
 import threading
 import time
@@ -299,6 +300,8 @@ class ScannerWindow:
         self.cancel_button.pack(side='left', padx=10)
         self.open_button = ttk.Button(controls, text='打开报告', command=self.open_report, state='disabled')
         self.open_button.pack(side='left')
+        self.desktop_button = ttk.Button(controls, text='软件内查看', command=self.open_embedded, state='disabled')
+        self.desktop_button.pack(side='left', padx=10)
         ttk.Label(frame, textvariable=self.status, wraplength=790).grid(row=8, column=0, columnspan=3, sticky='w', pady=6)
         self.edit_controls = [self.choose_button, self.drives_button, self.hidden_check, self.output_entry, self.output_button]
         window.protocol('WM_DELETE_WINDOW', self.close)
@@ -329,6 +332,7 @@ class ScannerWindow:
         self.start_button.configure(state='disabled' if busy else 'normal')
         self.cancel_button.configure(state='normal' if busy else 'disabled')
         self.open_button.configure(state='normal' if not busy and self.last_report else 'disabled')
+        self.desktop_button.configure(state='normal' if not busy and self.last_report else 'disabled')
 
     def start(self):
         from tkinter import messagebox
@@ -397,6 +401,12 @@ class ScannerWindow:
             self.status.set('正在停止扫描并保存部分报告，完成后关闭…')
         else:
             self.window.destroy()
+
+    def open_embedded(self):
+        if not self.last_report:
+            return
+        executable = Path(sys.executable).with_name('pythonw.exe')
+        subprocess.Popen([str(executable if executable.exists() else sys.executable), '-B', str(ROOT / 'tools' / 'desktop_viewer.py'), str(self.last_report)])
 
 
 def main(argv=None):
