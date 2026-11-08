@@ -4,9 +4,13 @@
 
 开源仓库：[Shizao315/disk-inventory](https://github.com/Shizao315/disk-inventory)。
 
+[![Windows build and test](https://github.com/Shizao315/disk-inventory/actions/workflows/windows.yml/badge.svg)](https://github.com/Shizao315/disk-inventory/actions/workflows/windows.yml)
+
 当前为 **0.1.0-test 测试版**。支持 Windows 10/11 x64。程序采用 C++ 与原生 Win32 界面；可执行文件不需要附带 HTML 模板，不要求安装 Python、Node.js、Everything 或 C++ 运行时。
 
 **当前交付限制：此包未签名，本机 Smart App Control 已阻止最终 EXE 启动。** 前一构建的真实扫描和窗口检查已通过，但最终文件需要在允许开发构建的环境中复验，或完成受信任代码签名。详细证据见 `VALIDATION.md`；不能把前一构建测试或 HTML 回放视为最终文件已运行通过。
+
+**云端验证更新：** 2026-11-08，GitHub Windows Server 2022 已从源码成功构建并运行 EXE，8 项扫描与原生窗口检查以及 Edge 报告检查全部通过。[成功运行记录](https://github.com/Shizao315/disk-inventory/actions/runs/42459081210)。该结果适用于此 CI 生成的程序，未改变本地未签名包的启动限制，也不包含全盘 MFT 性能验收。
 
 - [下载 0.1.0-test 未签名测试包](downloads/DiskInventory-0.1.0-test-unsigned.zip)
 - [测试包说明与 SHA-256](downloads/README.md)
