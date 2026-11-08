@@ -44,3 +44,13 @@ EXE 哈希、源文件哈希、官方工具链校验值、系统 DLL 导入和�
 - 本机用户证书库未发现可用的代码签名证书。
 - 需在允许此类开发构建的测试环境验证，或取得公开受信任的代码签名资格后签名，再重新验证最终哈希。
 - [微软 Smart App Control 说明](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview)与[签名要求](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/code-signing-for-smart-app-control)。
+
+## 签名前准备验证：2026-11-08 15:52
+
+- 新增 Windows 产品版本资源：ProductName=DiskInventory，ProductVersion=FileVersion=0.1.0.0，OriginalFilename=DiskInventory.exe；本地候选文件 228,352 字节，仍未签名。
+- 本地候选 SHA-256：`a5262372509695d793c59107608982b3b7ca35c1f5a6c556eb8c4683b699a317`。本地只验证了编译、版本字段和未签名拒绝行为，未把这些静态检查算作扫描器运行通过。
+- [云端运行 42460240042](https://github.com/Shizao315/disk-inventory/actions/runs/42460240042) 对提交 `3f7761e0d49db6c2c761cabd5e51c0c7c557f05e` 构建通过，产品字段检查、8 项扫描/窗口检查和 Edge 报告检查均通过。
+- 此次 CI 构建 SHA-256：`772dea10fc23db6f5fb61fdb3b198ebafca4ae8e39682473e1497cf92f2b1d29`。本地和 CI 构建哈希不同，分别记录，不把一份二进制的运行证据套到另一份。
+- `signing/verify-signed.ps1` 已对未签名候选作负向检查，正确拒绝；未伪造成功签名结果。
+- 手动工作流、最小权限和 XML 只完成静态检查；未向 SignPath 提交二进制、未取得批准、没有完成真实签名。API token 和项目设置未配置时，工作流会在提交前失败。
+- 原始本地 EXE、原始本地 ZIP 及仓库 downloads 中的历史测试包均未被此候选覆盖。

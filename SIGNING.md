@@ -6,8 +6,10 @@
 
 - 公开源码和 Windows 自动构建已就绪，现有云端扫描/报告测试通过。
 - 维护者确认 GitHub 2FA 已开启；这是用户确认，不是工具读取证明。
-- [Code signing policy](CODE_SIGNING_POLICY.md)、[英文申请材料](signing/APPLICATION.md)、产品版本资源与手动签名工作流已准备。
+- [Code signing policy](CODE_SIGNING_POLICY.md)、[英文申请材料](signing/APPLICATION.md)、产品版本资源与手动签名工作流已准备。带版本资源的构建已在 [GitHub Actions 42460240042](https://github.com/Shizao315/disk-inventory/actions/runs/42460240042) 通过产品信息验证、8 项扫描/窗口检查和 Edge 报告检查。
 - 尚未提交或获得 SignPath 审批，未配置签名 API token，没有生成已签名 EXE。
+
+手动签名工作流目前只完成结构/参数核对和未签名文件拒绝检查，尚未经过真实服务账号、签名请求和返回签名的端到端验证。
 
 下一步由维护者打开 https://signpath.org/apply ，用 `signing/APPLICATION.md` 中的项目事实与英文描述填写申请，并自行填写联系姓名/邮箱及确认条款。新项目缺少长期公开信誉，免费服务不保证获批。
 
