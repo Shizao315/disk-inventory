@@ -2,7 +2,7 @@
 
 ## Current status
 
-DiskInventory is an MIT-licensed project maintained at [Shizao315/disk-inventory](https://github.com/Shizao315/disk-inventory). The project is preparing an application for SignPath Foundation's free open-source signing service. **It has not been accepted, no signing certificate is currently available, and all published executables remain unsigned.**
+DiskInventory is an MIT-licensed project maintained at [Shizao315/disk-inventory](https://github.com/Shizao315/disk-inventory). The maintainer submitted an application for SignPath Foundation's free open-source signing service on 8 November 2026 and supplied a submission acknowledgement. **The application is awaiting review: it has not been accepted, no signing certificate is currently available, and all published executables remain unsigned.**
 
 The statement “Free code signing provided by SignPath.io, certificate by SignPath Foundation” will apply only after the service has approved the project and a release has actually been signed. It is not a claim about current downloads.
 

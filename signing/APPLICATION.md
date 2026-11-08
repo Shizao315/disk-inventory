@@ -1,4 +1,4 @@
-# SignPath 申请材料（准备稿，尚未提交）
+# SignPath 申请材料与状态
 
 申请入口：https://signpath.org/apply
 
@@ -15,7 +15,7 @@
 | Existing successful CI | https://github.com/Shizao315/disk-inventory/actions/runs/42459081210 |
 | GitHub MFA | 维护者于 2026-11-08 确认已开启；属于用户确认，非工具读取证明 |
 | Project age | 2026-11-08 新建；目前没有长期维护历史或既有社区信誉证明 |
-| Application status | 准备中，尚未发送申请或获批 |
+| Application status | 维护者于 2026-11-08 提交，并提供服务方收件回执截图；等待审核，尚未获批 |
 
 联系姓名与邮箱请由维护者在官方申请表中填写，不在公开文档中预填个人资料。若表单询问长期信誉、用户规模、第三方推荐等，本项目目前没有相应证据，应如实填写。
 
@@ -27,7 +27,11 @@ The application uses native C++/Win32 APIs. It does not index file contents, upl
 
 The public GitHub-hosted Windows build has passed eight scanner/native-window integration checks and browser checks, including a synthetic 12,001-record report. The project was created on 8 November 2026 and does not yet have an established public reputation. We are requesting an eligibility review for free open-source code signing; we understand that approval is not automatic.
 
-## Before submitting
+## Submission receipt
+
+On 8 November 2026 the maintainer submitted the application and supplied a screenshot of the SignPath Foundation submission acknowledgement. The acknowledgement confirms receipt and says the team intends to respond within the next few business days. It is not an approval, a certificate issuance, or permission to sign. No application reference was supplied. Personal contact details and the email screenshot are not stored in this public repository.
+
+## Application notes
 
 - Confirm the official form's terms, contact identity and intended use yourself.
 - Check that the code signing policy and download page are publicly accessible.
