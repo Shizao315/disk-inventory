@@ -12,3 +12,5 @@ EXE 为 Windows x64 原生窗口程序，大小为 227,328 字节。包内包含
 下载文件：`DiskInventory-0.1.0-test-unsigned.zip`。相应 ZIP 和 EXE 的 SHA-256 见 `SHA256SUMS.txt`。
 
 早先本地交付的 `DiskInventory-0.1.0-test-win64.zip` 保留原文件；此公开包更新了仓库信息和文档，EXE 字节保持不变。
+
+公开测试包固定对应初次发布提交 `b7887c5e7308be1ac0e77ba7d871308a98452151` 中的源码与文档。后续 main 分支可能包含测试或说明修正；核对包内源码哈希时应使用该提交。

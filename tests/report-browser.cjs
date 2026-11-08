@@ -1,5 +1,5 @@
 const {chromium} = require('playwright');
-const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFileURL}=require('url');
+const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFileURL,fileURLToPath}=require('url');
 (async()=>{
  const root=path.resolve(__dirname,'..'),out=path.join(root,'test-output');
  const browser=await chromium.launch({channel:'msedge',headless:true});
@@ -35,7 +35,8 @@ const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFile
   assert.equal(await page.locator('#size-vrows .row').count(),1);
   await page.locator('#size-vrows .row').dblclick();
   assert(await page.locator('#file-dialog').isVisible());
-  assert((await page.locator('#open-file').getAttribute('href')).startsWith('file:///C:/'));
+  const fixture=JSON.parse(fs.readFileSync(path.join(out,'fixture-info.json'),'utf8'));
+  assert.equal(fileURLToPath(await page.locator('#open-file').getAttribute('href')),path.join(fixture.root,'large-sparse.bin'));
   await page.locator('#dialog-close').click();await page.locator('#clear-filter').click();await page.locator('#up').click();
   await page.screenshot({path:path.join(out,'report-desktop.png'),fullPage:true});
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
