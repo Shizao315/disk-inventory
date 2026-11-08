@@ -99,3 +99,5 @@ GitHub Actions 的 Windows 工作流会从源码构建并执行这些检查。CI
 程序不主动向网络服务发送扫描数据；HTML 报告内嵌脚本、样式和记录，无外部请求。用户点击本地文件链接时，由浏览器和操作系统处理该路径；如扫描或打开网络共享路径，访问相应共享是该操作的一部分。
 
 当前项目没有受信任代码签名资格，也未获准使用 SignPath Foundation。后续将评估开源签名申请；申请与配置说明见 [SIGNING.md](SIGNING.md)。将源码发布到 GitHub 本身不会给 EXE 添加 Windows 可信签名。
+
+[Code signing policy](CODE_SIGNING_POLICY.md) 记录签名职责与隐私政策。[签名申请材料](signing/APPLICATION.md) 和手动工作流已准备；工作流在服务审批、参数和凭据尚未配置时会拒绝提交，当前未发送任何签名请求。

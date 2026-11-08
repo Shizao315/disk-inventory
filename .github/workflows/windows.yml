@@ -5,15 +5,19 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/windows.yml'
+      - '.github/workflows/sign-release.yml'
       - 'src/**'
       - 'tests/**'
+      - 'signing/**'
       - 'build.ps1'
       - 'setup-toolchain.ps1'
   pull_request:
     paths:
       - '.github/workflows/windows.yml'
+      - '.github/workflows/sign-release.yml'
       - 'src/**'
       - 'tests/**'
+      - 'signing/**'
       - 'build.ps1'
       - 'setup-toolchain.ps1'
   workflow_dispatch:

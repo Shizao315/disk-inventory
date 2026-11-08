@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Proposed configuration; must be approved in the actual SignPath project. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="DiskInventory.exe" product-name="DiskInventory"
+             product-version="0.1.0.0" file-version="0.1.0.0"
+             original-filename="DiskInventory.exe">
+      <authenticode-sign hash-algorithm="sha256" />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

@@ -51,7 +51,7 @@ digest = hashlib.sha256(binary).hexdigest()
 assert checks['exe_sha256'] == digest
 assert browser['status'] == 'PASS'
 assert browser['template_sha256'] == hashlib.sha256((ROOT / 'src/report-template.html').read_bytes()).hexdigest()
-source_files = ['src/main.cpp', 'src/report-template.html', 'build.ps1', 'setup-toolchain.ps1', 'tests/integration.py', 'tests/report-browser.cjs', 'tests/run-browser.ps1', 'tools/package.py', '.github/workflows/windows.yml', 'README.md', 'SPEC.md', 'SIGNING.md', 'VALIDATION.md', 'downloads/README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.txt']
+source_files = ['src/main.cpp', 'src/report-template.html', 'src/app.rc', 'build.ps1', 'setup-toolchain.ps1', 'tests/integration.py', 'tests/report-browser.cjs', 'tests/run-browser.ps1', 'tools/package.py', '.github/workflows/windows.yml', '.github/workflows/sign-release.yml', 'CODE_SIGNING_POLICY.md', 'signing/artifact-configuration.xml', 'signing/verify-signed.ps1', 'README.md', 'SPEC.md', 'SIGNING.md', 'VALIDATION.md', 'downloads/README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.txt']
 manifest = {
     'version': '0.1.0-test',
     'created_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),

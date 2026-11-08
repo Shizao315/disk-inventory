@@ -11,3 +11,5 @@ dist/*.zip
 .publish/
 node_modules/
 package-lock.json
+signed/
+unsigned/

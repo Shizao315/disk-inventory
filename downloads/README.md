@@ -14,3 +14,7 @@ EXE 为 Windows x64 原生窗口程序，大小为 227,328 字节。包内包含
 早先本地交付的 `DiskInventory-0.1.0-test-win64.zip` 保留原文件；此公开包更新了仓库信息和文档，EXE 字节保持不变。
 
 公开测试包固定对应初次发布提交 `b7887c5e7308be1ac0e77ba7d871308a98452151` 中的源码与文档。后续 main 分支可能包含测试或说明修正；核对包内源码哈希时应使用该提交。
+
+## Code signing policy
+
+见 [Code signing policy](../CODE_SIGNING_POLICY.md)。当前所有可下载程序均未签名；申请材料和接入工作流已准备，但没有已批准的签名服务，也没有已签名版本。

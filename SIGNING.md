@@ -2,6 +2,29 @@
 
 核对日期：2026-11-08。签名身份与费用尚未申请或购买，当前 EXE 未签名。
 
+## 本项目当前进度
+
+- 公开源码和 Windows 自动构建已就绪，现有云端扫描/报告测试通过。
+- 维护者确认 GitHub 2FA 已开启；这是用户确认，不是工具读取证明。
+- [Code signing policy](CODE_SIGNING_POLICY.md)、[英文申请材料](signing/APPLICATION.md)、产品版本资源与手动签名工作流已准备。
+- 尚未提交或获得 SignPath 审批，未配置签名 API token，没有生成已签名 EXE。
+
+下一步由维护者打开 https://signpath.org/apply ，用 `signing/APPLICATION.md` 中的项目事实与英文描述填写申请，并自行填写联系姓名/邮箱及确认条款。新项目缺少长期公开信誉，免费服务不保证获批。
+
+获批后配置 `signing` 环境及下列 GitHub Actions 设置（不要写入源码）：
+
+| 类型 | 名称 |
+| --- | --- |
+| Secret | SIGNPATH_API_TOKEN |
+| Variable | SIGNPATH_ORGANIZATION_ID |
+| Variable | SIGNPATH_PROJECT_SLUG |
+| Variable | SIGNPATH_SIGNING_POLICY_SLUG |
+| Variable | SIGNPATH_ARTIFACT_CONFIGURATION_SLUG |
+| Variable | SIGNPATH_EXPECTED_SIGNER_SUBJECT |
+| Variable | SIGNPATH_READY=true（仅在审批和参数核对完成后设置） |
+
+具体 ID、slug 和证书 Subject 以获批账户为准。将 `signing/artifact-configuration.xml` 作为待服务方审核的配置；签名策略需保留维护者人工批准。运行 “Sign Windows release” 工作流时，勾选本次提交确认。流程会先构建/测试、上传精确产物、等待批准、验证返回的签名与时间戳，再测试已签名程序。任何环节失败都不会生成 `signed-verified` 交付物。
+
 ## 这次为什么不能运行
 
 本机 Smart App Control 启用了强制检查，最终 EXE 启动返回 WinError 4551。该机制会拦截无法确认安全性的未签名程序。它不同于普通 SmartScreen 下载提醒，不能假设会出现“仍要运行”按钮。

@@ -1,0 +1,107 @@
+name: Sign Windows release (manual, approval required)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_request:
+        description: 'I approve uploading this build to the configured signing service'
+        type: boolean
+        default: false
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-test-sign:
+    if: github.repository == 'Shizao315/disk-inventory' && github.ref == 'refs/heads/main'
+    runs-on: windows-2022
+    timeout-minutes: 60
+    environment: signing
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Require approved provider configuration
+        env:
+          CONFIRMED: ${{ inputs.confirm_request }}
+          SIGNPATH_READY: ${{ vars.SIGNPATH_READY }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          SIGNPATH_EXPECTED_SIGNER_SUBJECT: ${{ vars.SIGNPATH_EXPECTED_SIGNER_SUBJECT }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          if ($env:CONFIRMED -ne 'true' -or $env:SIGNPATH_READY -ne 'true') {
+            throw 'Signing is not approved/configured; no artifact will be sent.'
+          }
+          $required = @('SIGNPATH_ORGANIZATION_ID','SIGNPATH_PROJECT_SLUG','SIGNPATH_SIGNING_POLICY_SLUG','SIGNPATH_ARTIFACT_CONFIGURATION_SLUG','SIGNPATH_EXPECTED_SIGNER_SUBJECT','SIGNPATH_API_TOKEN')
+          foreach ($key in $required) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($key))) { throw "Missing signing setting: $key" }
+          }
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare official compiler
+        run: ./setup-toolchain.ps1
+      - name: Build metadata-qualified executable
+        run: ./build.ps1
+      - name: Test unsigned scanner and native window
+        run: python -B tests/integration.py
+      - name: Install browser test library
+        run: npm install --no-save --ignore-scripts playwright@1.62.1 --registry=https://registry.npmjs.org
+      - name: Test unsigned offline report
+        run: ./tests/run-browser.ps1
+      - name: Preserve unsigned executable
+        run: |
+          New-Item -ItemType Directory -Force -Path unsigned | Out-Null
+          Copy-Item -LiteralPath dist/DiskInventory.exe -Destination unsigned/DiskInventory.exe
+      - name: Upload exact executable for origin-verified signing
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiskInventory-signing-input
+          path: unsigned/DiskInventory.exe
+          if-no-files-found: error
+      - name: Submit request and await owner/provider approval
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: '1800'
+          output-artifact-directory: signed
+      - name: Verify signature, timestamp and approved identity
+        env:
+          EXPECTED_SIGNER: ${{ vars.SIGNPATH_EXPECTED_SIGNER_SUBJECT }}
+        run: ./signing/verify-signed.ps1 -Executable signed/DiskInventory.exe -UnsignedExecutable unsigned/DiskInventory.exe -ExpectedSignerSubject $env:EXPECTED_SIGNER
+      - name: Test returned signed scanner and offline report
+        run: |
+          Copy-Item -LiteralPath signed/DiskInventory.exe -Destination dist/DiskInventory.exe -Force
+          python -B tests/integration.py
+          if ($LASTEXITCODE -ne 0) { throw 'Signed scanner integration failed' }
+          ./tests/run-browser.ps1
+      - name: Save signed executable after verification and runtime tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiskInventory-win64-signed-verified
+          if-no-files-found: error
+          path: |
+            signed/DiskInventory.exe
+            signed/verification.json
+            test-output/integration-results.json
+            test-output/browser-results.json
+            LICENSE
+            THIRD_PARTY_NOTICES.txt
