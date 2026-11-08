@@ -1,0 +1,50 @@
+name: Windows build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download and verify official Zig compiler
+        run: ./setup-toolchain.ps1
+      - name: Build standalone Windows executable
+        run: ./build.ps1
+      - name: Scan synthetic fixtures and test native GUI
+        run: python -B tests/integration.py
+      - name: Install pinned browser test library
+        run: npm install --no-save --ignore-scripts playwright@1.62.1 --registry=https://registry.npmjs.org
+      - name: Test offline report in Edge
+        run: ./tests/run-browser.ps1
+      - name: Save unsigned executable and verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiskInventory-win64-unsigned
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            dist/DiskInventory.exe
+            test-output/integration-results.json
+            test-output/browser-results.json
+            test-output/report-desktop.png

@@ -1,0 +1,13 @@
+.tools/
+.build/
+dist/
+test-output/
+dist/*.html
+dist/*.json
+dist/*.csv
+dist/*.md
+dist/*.zip
+*.tmp
+.publish/
+node_modules/
+package-lock.json

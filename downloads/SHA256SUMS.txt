@@ -1,0 +1,2 @@
+1f896ad6b01f6c669b535dbcc751ea6f8581e485e44e567a4a687f18b87739ef  DiskInventory-0.1.0-test-unsigned.zip
+200ad366dd2f85b6eca75ae5522f8451fdb19a2a5c43a584402dbb0f1e12e9fd  DiskInventory.exe

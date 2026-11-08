@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>磁盘清单 · 离线报告交互样稿</title>
+<style>
+:root{color-scheme:light;--bg:#f4f6fa;--line:#e1e6ef;--muted:#64748b;--blue:#245bd6;--ink:#18253d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink)}button,input{font:inherit}button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 11px;color:inherit}button:hover{background:#edf3ff}button:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}button:disabled{opacity:.4;cursor:default}
+header{background:#fff;border-bottom:1px solid var(--line);padding:25px 28px 18px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}h1{font-size:24px;margin:0;font-weight:650;letter-spacing:-.5px}.sub{color:var(--muted);margin:5px 0 0}.pill{font-size:12px;background:#eef3ff;color:var(--blue);padding:5px 10px;border-radius:20px}.notice{padding:10px 28px;background:#fff7df;color:#765710;border-bottom:1px solid #efdfac}.stats{display:flex;gap:35px;margin-top:22px}.stat strong{display:block;font-size:23px}.stat span{font-size:12px;color:var(--muted)}.toolbar{padding:18px 28px;display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;align-items:center}.modes{display:flex;gap:5px}.modes .active{background:var(--blue);border-color:var(--blue);color:#fff}.hint{font-size:12px;color:var(--muted)}
+main{padding:0 28px 24px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}body[data-mode="size"] main,body[data-mode="explorer"] main{grid-template-columns:minmax(0,1fr)}body[data-mode="size"] #explorer,body[data-mode="explorer"] #ranking{display:none}.panel{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0;box-shadow:0 3px 15px #1d325106}.panel-title{padding:15px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid var(--line)}.panel-title h2{font-size:15px;margin:0}.scroll{overflow:auto;max-height:480px;min-height:300px}table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}th{background:#f8fafc;color:var(--muted);font-weight:500;text-align:left;position:sticky;top:0;z-index:1}th,td{padding:10px 12px;border-bottom:1px solid #edf0f5}td.name{font-weight:550}tbody tr{cursor:pointer}tbody tr:hover{background:#f2f6ff}tbody tr.selected{background:#e8f0ff}td.path{color:var(--muted);max-width:340px;overflow:hidden;text-overflow:ellipsis}.sort{border:0;padding:0;background:transparent;font-size:12px;color:var(--blue)}.locate{padding:3px 7px;font-size:12px}.navigation{display:flex;gap:5px;padding:10px;border-bottom:1px solid var(--line);align-items:center}.navigation button{padding:4px 9px}.address{flex:1;min-width:60px;background:#f6f8fc;border:1px solid var(--line);padding:6px 9px;border-radius:5px;font-size:12px;overflow:auto;white-space:nowrap}.explorer-body{display:grid;grid-template-columns:140px minmax(0,1fr)}.tree{background:#fbfcfe;border-right:1px solid var(--line);padding:9px 5px;overflow:auto;max-height:480px}.tree button{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:4px;padding:5px;font-size:12px;white-space:nowrap}.tree button.current{background:#e8f0ff;color:var(--blue)}.folder{color:#ac7b00}.selection{border-top:1px solid var(--line);padding:10px 15px;min-height:42px;display:flex;align-items:center;gap:12px;font-size:12px}.selection span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;flex:1}.selection button{font-size:12px;padding:3px 8px}.foot{padding:0 28px 24px;color:var(--muted);font-size:12px}.empty{color:var(--muted);padding:30px}.crumb{padding:0 12px 8px;color:var(--muted);font-size:12px}#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#18253d;color:white;padding:10px 20px;border-radius:8px;max-width:90vw;z-index:5}dialog{border:1px solid var(--line);border-radius:12px;max-width:90vw;padding:24px;box-shadow:0 12px 60px #0002}dialog::backdrop{background:#15274655}dialog h3{margin-top:0}dialog p{overflow-wrap:anywhere}dialog .hint{max-width:440px}
+@media(max-width:1000px){main{grid-template-columns:minmax(0,1fr)}header{padding:18px}.toolbar{padding:16px 18px}main{padding:0 18px 20px}.notice{padding:10px 18px}.stats{gap:24px}.scroll{max-height:350px}.foot{padding:0 18px 20px}}
+</style>
+</head>
+<body data-mode="split">
+<header><div class="top"><div><h1>磁盘清单</h1><p class="sub">同一份扫描记录，两种浏览方式。</p></div><span class="pill">离线 HTML · 交互样稿</span></div><div class="stats"><div class="stat"><strong id="count">—</strong><span>示例文件</span></div><div class="stat"><strong id="total">—</strong><span>逻辑大小合计</span></div><div class="stat"><strong>2</strong><span>示例磁盘</span></div></div></header>
+<div class="notice">这是人工构造的数据，不是电脑扫描结果。无需联网；本样稿用于确认界面与操作。</div>
+<div class="toolbar"><div class="modes" aria-label="显示方式"><button data-mode="size" aria-pressed="false">大小排序</button><button data-mode="explorer" aria-pressed="false">目录浏览</button><button data-mode="split" class="active" aria-pressed="true">双栏</button></div><span class="hint">点击“定位目录”可在两种视图之间找到同一个文件。</span></div>
+<main>
+<section class="panel" id="ranking" aria-label="全盘文件大小排序"><div class="panel-title"><h2>全部文件 · 按大小排序</h2><span class="hint">跨文件夹统一排序</span></div><div class="scroll"><table><thead><tr><th>名称</th><th><button class="sort" id="sort-size">大小 ↓</button></th><th>类型</th><th>创建时间</th><th>最后修改时间</th><th>完整路径</th><th>操作</th></tr></thead><tbody id="size-rows"></tbody></table></div><div class="selection"><span id="size-selection">选择文件可查看完整路径</span><button id="copy-size">复制路径</button></div></section>
+<section class="panel" id="explorer" aria-label="按文件夹浏览"><div class="panel-title"><h2>目录浏览</h2><span class="hint">双击文件夹进入</span></div><div class="navigation"><button id="back" title="后退" aria-label="后退">←</button><button id="forward" title="前进" aria-label="前进">→</button><button id="up" title="上一级" aria-label="上一级">↑</button><div class="address" id="address" role="status"></div></div><div class="explorer-body"><nav class="tree" id="tree" aria-label="目录树"></nav><div class="scroll"><table><thead><tr><th>名称</th><th>大小</th><th>类型</th><th>创建时间</th><th>最后修改时间</th></tr></thead><tbody id="folder-rows"></tbody></table><div class="empty" id="empty" hidden>此文件夹为空</div></div></div><div class="selection"><span id="folder-selection">扫描记录中的目录结构</span><button id="copy-folder">复制路径</button></div></section>
+</main>
+<div class="foot">样稿中日期使用 +08:00 时区。文件夹大小为后代文件逻辑大小之和。正式报告保留扫描时的信息；浏览目录不重新扫描硬盘。文件列较多时可横向滚动。</div>
+<div id="toast" role="status" hidden></div>
+<dialog id="file-dialog"><h3 id="dialog-title"></h3><p id="dialog-path"></p><p class="hint">此文件为人工示例，不会打开真实文件。正式报告将提供路径复制；直接打开本地文件需文件仍存在且浏览器支持。</p><button id="dialog-close">关闭</button></dialog>
+<script>
+'use strict';
+// Synthetic data only. No local filesystem reads or network requests.
+const folders=[
+ {id:'c',parent:null,name:'C:',path:'C:\\'},
+ {id:'c-work',parent:'c',name:'工作资料',path:'C:\\工作资料\\'},
+ {id:'c-models',parent:'c-work',name:'模型',path:'C:\\工作资料\\模型\\'},
+ {id:'c-reports',parent:'c-work',name:'报告',path:'C:\\工作资料\\报告\\'},
+ {id:'c-downloads',parent:'c',name:'下载',path:'C:\\下载\\'},
+ {id:'c-empty',parent:'c',name:'空文件夹',path:'C:\\空文件夹\\'},
+ {id:'d',parent:null,name:'D:',path:'D:\\'},
+ {id:'d-backup',parent:'d',name:'备份',path:'D:\\备份\\'},
+ {id:'d-media',parent:'d',name:'影像资料',path:'D:\\影像资料\\'},
+ {id:'d-video',parent:'d-media',name:'视频',path:'D:\\影像资料\\视频\\'},
+ {id:'d-photo',parent:'d-media',name:'照片',path:'D:\\影像资料\\照片\\'}
+];
+const seed=[
+ ['d-backup','磁盘镜像.vhdx',124554051584,'VHDX'],
+ ['d-video','实验录像_01.mp4',25769803776,'MP4'],
+ ['d-video','实验录像_02.mp4',9663676416,'MP4'],
+ ['c-models','三维模型.mph',7516192768,'MPH'],
+ ['d-backup','资料归档.7z',5368709120,'7Z'],
+ ['c-downloads','安装介质.iso',4294967296,'ISO'],
+ ['c-models','网格数据.bin',1073741824,'BIN'],
+ ['d-photo','原始影像.tif',314572800,'TIF'],
+ ['c-reports','研究报告.pdf',18874368,'PDF'],
+ ['c-reports','阶段汇报.pptx',12582912,'PPTX'],
+ ['d-photo','现场照片.jpg',6291456,'JPG'],
+ ['c-work','数据汇总.xlsx',2097152,'XLSX'],
+ ['c-reports','说明文档.docx',524288,'DOCX'],
+ ['c-work','参数记录.csv',98304,'CSV'],
+ ['d-backup','README.md',2048,'MD'],
+ ['c-work','无扩展名记录',512,'无扩展名'],
+ ['c-work','空白记录.txt',0,'TXT']
+];
+const byId=new Map(folders.map(f=>[f.id,f]));
+const files=seed.map((f,i)=>({id:'f'+i,parent:f[0],name:f[1],bytes:f[2],type:f[3],path:byId.get(f[0]).path+f[1],created:`2026-10-${String(1+i).padStart(2,'0')} 09:15`,modified:`2026-11-${String(1+i%7).padStart(2,'0')} 14:30`}));
+for(const d of folders){d.bytes=0;d.created='2026-09-01 09:00';d.modified='2026-11-07 18:00';}
+for(const f of files){for(let p=f.parent;p!==null;p=byId.get(p).parent)byId.get(p).bytes+=f.bytes;}
+const $=id=>document.getElementById(id);
+let descending=true,current='c',history=['c'],historyIndex=0,sizeSelected=null,folderSelected=null,toastTimer;
+function human(n){if(n===0)return '0 B';const units=['B','KiB','MiB','GiB','TiB'];const k=Math.min(Math.floor(Math.log(n)/Math.log(1024)),units.length-1);return (n/1024**k).toLocaleString('zh-CN',{maximumFractionDigits:k?2:0})+' '+units[k];}
+function cell(tr,value,cls){const td=document.createElement('td');td.textContent=value;if(cls)td.className=cls;tr.append(td);return td;}
+function notify(value){$('toast').textContent=value;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,2600);}
+function setMode(mode){document.body.dataset.mode=mode;document.querySelectorAll('button[data-mode]').forEach(b=>{const active=b.dataset.mode===mode;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});}
+function showFile(f){$('dialog-title').textContent=f.name;$('dialog-path').textContent=f.path;$('file-dialog').showModal();}
+function renderSize(){
+ $('size-rows').replaceChildren();
+ const sorted=[...files].sort((a,b)=>(descending?b.bytes-a.bytes:a.bytes-b.bytes)||a.path.localeCompare(b.path,'zh-CN'));
+ for(const f of sorted){const tr=document.createElement('tr');tr.tabIndex=0;tr.classList.toggle('selected',sizeSelected?.id===f.id);cell(tr,f.name,'name');cell(tr,human(f.bytes)).title=f.bytes.toLocaleString()+' Bytes';cell(tr,f.type);cell(tr,f.created);cell(tr,f.modified);cell(tr,f.path,'path').title=f.path;
+  const action=cell(tr,'');const button=document.createElement('button');button.className='locate';button.textContent='定位目录';button.addEventListener('click',e=>{e.stopPropagation();sizeSelected=f;if(document.body.dataset.mode==='size')setMode('explorer');navigate(f.parent,f.id);renderSize();});action.append(button);
+  const select=()=>{sizeSelected=f;$('size-selection').textContent=f.path;renderSize();};tr.addEventListener('click',select);tr.addEventListener('dblclick',()=>showFile(f));tr.addEventListener('keydown',e=>{if(e.target!==tr)return;if(e.key==='Enter')showFile(f);if(e.key===' '){e.preventDefault();select();}});$('size-rows').append(tr);
+ }
+ $('sort-size').textContent='大小 '+(descending?'↓':'↑');$('size-selection').textContent=sizeSelected?.path||'选择文件可查看完整路径';
+}
+function navigate(id,selectedId=null){if(current!==id){history=history.slice(0,historyIndex+1);history.push(id);historyIndex++;}current=id;folderSelected=selectedId?files.find(f=>f.id===selectedId):null;renderExplorer();}
+function renderExplorer(){
+ $('address').textContent=byId.get(current).path;$('back').disabled=historyIndex===0;$('forward').disabled=historyIndex===history.length-1;$('up').disabled=byId.get(current).parent===null;
+ $('tree').replaceChildren();
+ for(const d of folders){let depth=0;for(let p=d.parent;p!==null;p=byId.get(p).parent)depth++;const b=document.createElement('button');b.textContent=(d.parent===null?'▣ ':'▸ ')+d.name;b.style.paddingLeft=(6+depth*12)+'px';b.classList.toggle('current',d.id===current);b.title=d.path;b.addEventListener('click',()=>navigate(d.id));$('tree').append(b);}
+ $('folder-rows').replaceChildren();
+ const children=[...folders.filter(f=>f.parent===current),...files.filter(f=>f.parent===current)];
+ for(const f of children){const isFolder=byId.has(f.id),tr=document.createElement('tr');tr.tabIndex=0;tr.classList.toggle('selected',folderSelected?.id===f.id);cell(tr,(isFolder?'▸ ':'')+f.name,isFolder?'name folder':'name');cell(tr,human(f.bytes));cell(tr,isFolder?'文件夹':f.type);cell(tr,f.created);cell(tr,f.modified);
+  const open=()=>isFolder?navigate(f.id):showFile(f);tr.addEventListener('dblclick',open);tr.addEventListener('click',()=>{folderSelected=f;$('folder-selection').textContent=f.path;for(const row of $('folder-rows').children)row.classList.remove('selected');tr.classList.add('selected');});tr.addEventListener('keydown',e=>{if(e.key==='Enter')open();});$('folder-rows').append(tr);
+ }
+ $('empty').hidden=children.length!==0;$('folder-selection').textContent=folderSelected?.path||byId.get(current).path;
+}
+async function copyPath(value){try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(value);notify('路径已复制');}else{window.prompt('请复制完整路径：',value);}}catch{window.prompt('请复制完整路径：',value);}}
+document.querySelectorAll('button[data-mode]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+$('sort-size').addEventListener('click',()=>{descending=!descending;renderSize();});
+$('back').addEventListener('click',()=>{if(historyIndex>0){current=history[--historyIndex];folderSelected=null;renderExplorer();}});
+$('forward').addEventListener('click',()=>{if(historyIndex<history.length-1){current=history[++historyIndex];folderSelected=null;renderExplorer();}});
+$('up').addEventListener('click',()=>{const parent=byId.get(current).parent;if(parent!==null)navigate(parent);});
+$('copy-size').addEventListener('click',()=>sizeSelected?copyPath(sizeSelected.path):notify('请先选择一个文件'));
+$('copy-folder').addEventListener('click',()=>copyPath(folderSelected?.path||byId.get(current).path));
+$('dialog-close').addEventListener('click',()=>$('file-dialog').close());
+$('count').textContent=files.length;$('total').textContent=human(files.reduce((sum,f)=>sum+f.bytes,0));renderSize();renderExplorer();
+</script>
+</body>
+</html>
