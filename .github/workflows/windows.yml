@@ -9,6 +9,8 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'signing/**'
+      - 'tools/dev_scan.py'
+      - 'RUN_DEV_SCAN.cmd'
       - 'build.ps1'
       - 'setup-toolchain.ps1'
   pull_request:
@@ -18,6 +20,8 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'signing/**'
+      - 'tools/dev_scan.py'
+      - 'RUN_DEV_SCAN.cmd'
       - 'build.ps1'
       - 'setup-toolchain.ps1'
   workflow_dispatch:
@@ -52,6 +56,10 @@ jobs:
         run: npm install --no-save --ignore-scripts playwright@1.62.1 --registry=https://registry.npmjs.org
       - name: Test offline report in Edge
         run: ./tests/run-browser.ps1
+      - name: Test Python source scanner and development window
+        run: python -B tests/test_dev_scan.py
+      - name: Test source-generated offline report in Edge
+        run: ./tests/run-browser.ps1 -ReportDirectory test-output/dev
       - name: Save unsigned executable and verification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -64,3 +72,6 @@ jobs:
             test-output/integration-results.json
             test-output/browser-results.json
             test-output/report-desktop.png
+            test-output/dev/dev-integration-results.json
+            test-output/dev/browser-results.json
+            test-output/dev/report-desktop.png

@@ -1,7 +1,9 @@
 const {chromium} = require('playwright');
 const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFileURL,fileURLToPath}=require('url');
 (async()=>{
- const root=path.resolve(__dirname,'..'),out=path.join(root,'test-output');
+ const root=path.resolve(__dirname,'..');
+ const reportIndex=process.argv.indexOf('--report-dir');
+ const out=reportIndex<0?path.join(root,'test-output'):path.resolve(process.argv[reportIndex+1]);
  const browser=await chromium.launch({channel:'msedge',headless:true});
  try{
   const page=await browser.newPage({viewport:{width:1600,height:1000}}),errors=[],external=[];
@@ -12,6 +14,7 @@ const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFile
   if(replay){const previous=fs.readFileSync(report,'utf8'),match=previous.match(/<script id="scan-data" type="application\/json">([\s\S]*?)<\/script>/);assert(match,'Previous scan payload missing');report=path.join(out,'final-template-replay.html');fs.writeFileSync(report,fs.readFileSync(path.join(root,'src/report-template.html'),'utf8').replace('<!--DISK_DATA-->',()=>match[1]));}
   await page.goto(pathToFileURL(report).href);
   await page.waitForFunction(()=>document.getElementById('loading').hidden);
+  const sourceVersion=await page.locator('#scan-data').evaluate(el=>JSON.parse(el.textContent).version);
   assert.equal(await page.locator('#file-count').innerText(),'6');
   assert((await page.locator('#size-vrows .filename').first().innerText()).includes('large-sparse.bin'));
   await page.locator('#sort-size').click();
@@ -56,7 +59,7 @@ const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFile
   await page.waitForTimeout(100);
   assert((await page.locator('#size-vrows .row').last().innerText()).includes('item-0.bin'));
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-  fs.writeFileSync(path.join(out,'browser-results.json'),JSON.stringify({status:'PASS',scope:replay?'final HTML template replay with earlier real scan data':'actual executable-generated report',template_sha256:require('crypto').createHash('sha256').update(template).digest('hex'),browser:await browser.version(),externalRequests:external.length,pageErrors:errors,checks:['size numeric order','mode switching','locate directory','folder navigation/back/forward','filter','file details/local URL','12001-record virtualization and full pagination']},null,2));
+  fs.writeFileSync(path.join(out,'browser-results.json'),JSON.stringify({status:'PASS',scope:replay?'final HTML template replay with earlier real scan data':sourceVersion.includes('dev-python')?'Python source scanner-generated report':'native executable-generated report',source_version:sourceVersion,template_sha256:require('crypto').createHash('sha256').update(template).digest('hex'),browser:await browser.version(),externalRequests:external.length,pageErrors:errors,checks:['size numeric order','mode switching','locate directory','folder navigation/back/forward','filter','file details/local URL','12001-record virtualization and full pagination']},null,2));
   console.log('Browser report checks: PASS');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
