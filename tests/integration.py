@@ -140,6 +140,20 @@ class ScannerIntegration(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
         self.assertFalse(target.exists())
 
+    def test_failed_replacement_preserves_complete_report(self):
+        target = OUT / 'read-only-target.html'
+        target.write_bytes(b'original')
+        self.assertTrue(KERNEL.SetFileAttributesW(str(target), 1))
+        try:
+            proc = subprocess.run([str(EXE), '--root', str(self.root / 'empty'), '--output', str(target)],
+                                  capture_output=True, timeout=10)
+            self.assertEqual(proc.returncode, 1)
+            self.assertEqual(target.read_bytes(), b'original')
+            recovered = read_report(target.with_suffix('.html.tmp'))
+            self.assertEqual(len(recovered['nodes']), 1)
+        finally:
+            KERNEL.SetFileAttributesW(str(target), 0x80)
+
     def test_mft_request_reports_fallback_for_folder(self):
         report = OUT / 'fallback.html'
         proc = subprocess.run([str(EXE), '--root', str(self.root / 'empty'), '--output', str(report), '--engine', 'mft'], capture_output=True, timeout=10)
@@ -151,6 +165,7 @@ class ScannerIntegration(unittest.TestCase):
     def test_native_gui_generates_report(self):
         from ctypes import wintypes
         user = ctypes.WinDLL('user32', use_last_error=True)
+        gdi = ctypes.WinDLL('gdi32', use_last_error=True)
         user.SetProcessDPIAware()
         callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         user.EnumWindows.argtypes = [callback_type, wintypes.LPARAM]
@@ -164,8 +179,11 @@ class ScannerIntegration(unittest.TestCase):
         user.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
         user.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
         user.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        user.GetDpiForWindow.argtypes = [wintypes.HWND]
+        user.GetDpiForWindow.restype = wintypes.UINT
         user.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
                                      ctypes.c_int, ctypes.c_int, wintypes.UINT]
+        gdi.GetObjectW.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p]
 
         def rect(hwnd):
             bounds = wintypes.RECT()
@@ -200,6 +218,12 @@ class ScannerIntegration(unittest.TestCase):
             output_control = user.GetDlgItem(window, 106)
             browse_control = user.GetDlgItem(window, 102)
             status_control = user.GetDlgItem(window, 111)
+            font = user.SendMessageW(root_control, 0x0031, 0, 0)  # WM_GETFONT
+            logfont = ctypes.create_string_buffer(92)  # LOGFONTW
+            self.assertEqual(gdi.GetObjectW(font, len(logfont), logfont), len(logfont))
+            dpi = user.GetDpiForWindow(window)
+            self.assertGreaterEqual(dpi, 96)
+            self.assertEqual(ctypes.c_long.from_buffer(logfont).value, -((20 * dpi + 48) // 96))
             resize_styles = 0x00040000 | 0x00010000  # WS_THICKFRAME and WS_MAXIMIZEBOX
             self.assertEqual(user.GetWindowLongW(window, -16) & resize_styles, resize_styles)
             self.assertTrue(user.GetWindowLongW(window, -20) & 0x10)  # WS_EX_ACCEPTFILES
@@ -214,6 +238,11 @@ class ScannerIntegration(unittest.TestCase):
             self.assertEqual(rect(output_control).right, output.right + 160)
             self.assertEqual(rect(browse_control).left, browse.left + 160)
             self.assertEqual(rect(status_control).top, status.top + 80)
+            self.assertTrue(user.SetWindowPos(window, None, 0, 0, width + 40, height - 24, keep_position))
+            footer = [rect(user.GetDlgItem(window, id)) for id in (108, 109, 110, 115)]
+            self.assertTrue(all(a.right < b.left for a, b in zip(footer, footer[1:])))
+            self.assertLess(rect(output_control).bottom, footer[0].top)
+            self.assertLess(footer[0].bottom, rect(status_control).top)
             self.assertTrue(user.SetWindowPos(window, None, 0, 0, width, height, keep_position))
             self.assertEqual(rect(root_control).right, root.right)
             self.assertEqual(rect(root_control).bottom, root.bottom)
@@ -237,6 +266,40 @@ class ScannerIntegration(unittest.TestCase):
             self.assertTrue(user.IsWindowEnabled(user.GetDlgItem(window, 110)))
             self.assertTrue(user.IsWindowEnabled(user.GetDlgItem(window, 115)))
             self.assertEqual(len(read_report(report)['nodes']), 1)
+
+            self.assertTrue(KERNEL.SetFileAttributesW(str(report), 1))
+            original = report.read_bytes()
+            try:
+                self.assertTrue(user.PostMessageW(window, 0x111, 108, 0))
+                for _ in range(100):
+                    dialogs = []
+                    @callback_type
+                    def visit_dialog(hwnd, _):
+                        pid = wintypes.DWORD()
+                        user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                        if pid.value == proc.pid and user.GetDlgItem(hwnd, 6):  # IDYES
+                            dialogs.append(hwnd)
+                        return True
+                    user.EnumWindows(visit_dialog, 0)
+                    if dialogs:
+                        self.assertTrue(user.PostMessageW(dialogs[0], 0x111, 6, 0))
+                        break
+                    time.sleep(0.05)
+                else:
+                    self.fail('Overwrite confirmation did not appear')
+                for _ in range(200):
+                    user.SendMessageW(output_control, 0x0D, len(buffer), ctypes.cast(buffer, ctypes.c_void_p).value)
+                    if Path(buffer.value) != report and user.IsWindowEnabled(user.GetDlgItem(window, 110)):
+                        break
+                    time.sleep(0.05)
+                recovered = Path(buffer.value)
+                self.assertEqual(recovered.parent, report.parent)
+                self.assertTrue(recovered.name.startswith('DiskInventory-recovered-'))
+                self.assertEqual(len(read_report(recovered)['nodes']), 1)
+                self.assertEqual(report.read_bytes(), original)
+                self.assertFalse(report.with_suffix('.html.tmp').exists())
+            finally:
+                KERNEL.SetFileAttributesW(str(report), 0x80)
             user.PostMessageW(window, 0x10, 0, 0)
             self.assertEqual(proc.wait(timeout=10), 0)
         finally:

@@ -40,8 +40,13 @@ static std::wstring lastOutput;
 static Options activeOptions;
 static std::string lastFailure;
 static constexpr DWORD windowStyle = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
-static constexpr int minClientWidth = 600;
-static constexpr int minClientHeight = 375;
+static constexpr int minClientWidth = 650;
+static constexpr int minClientHeight = 390;
+static UINT uiDpi = USER_DEFAULT_SCREEN_DPI;
+
+static int uiPixels(int units) {
+ return MulDiv(units, uiDpi, USER_DEFAULT_SCREEN_DPI);
+}
 static constexpr int titleId = 112;
 static constexpr int rootLabelId = 113;
 static constexpr int outputLabelId = 114;
@@ -202,9 +207,20 @@ static Inventory scan(Options o){
  inv.seconds=(GetTickCount64()-start)/1000.0;inv.finished=timestamp();return inv;
 }
 static std::wstring fullPath(const Inventory& inv,int id){const auto&n=inv.nodes[id];return n.dir?inv.dirs[id]:join(inv.dirs[n.parent],n.name);}
-static void saveReport(const Inventory& inv,const Options& o){
+static std::wstring reportName(const wchar_t* prefix){
+ SYSTEMTIME now{};
+ GetLocalTime(&now);
+ wchar_t stamp[32];
+ swprintf(stamp, 32, L"%04u%02u%02u-%02u%02u%02u-%03u", now.wYear, now.wMonth, now.wDay,
+          now.wHour, now.wMinute, now.wSecond, now.wMilliseconds);
+ return std::wstring(prefix) + stamp + L"-" + std::to_wstring(GetCurrentProcessId()) + L".html";
+}
+static std::wstring saveReport(const Inventory& inv,const Options& o,bool allowAlternate=false){
  const std::wstring tmp=o.output+L".tmp";HANDLE f=CreateFileW(extended(tmp).c_str(),GENERIC_WRITE,0,nullptr,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,nullptr);
- if(f==INVALID_HANDLE_VALUE)throw std::runtime_error("Cannot create temporary report (existing .tmp is preserved): "+utf8(errorText(GetLastError())));
+ if(f==INVALID_HANDLE_VALUE){
+  const DWORD error = GetLastError();
+  throw std::runtime_error(utf8(L"无法创建临时报告，请选择一个可写目录或新的文件名。\n" + tmp + L"\n" + errorText(error)));
+ }
  try{
   writeAll(f,REPORT_HEAD,sizeof(REPORT_HEAD)-1);
   writeAll(f,"{\"version\":\"0.1.0-test\",\"started\":"+json(inv.started)+",\"finished\":"+json(inv.finished)+",\"seconds\":"+std::to_string(inv.seconds)+",\"hidden\":"+(o.hidden?"true":"false")+",\"cancelled\":"+(inv.cancelled?"true":"false")+",\"errors\":"+std::to_string(inv.errors)+",\"skipped\":"+std::to_string(inv.skipped)+",\"hiddenSkipped\":"+std::to_string(inv.hiddenSkipped)+",\"engines\":[");
@@ -222,13 +238,29 @@ static void saveReport(const Inventory& inv,const Options& o){
   }
   writeAll(f,buffer);writeAll(f,"]}");writeAll(f,REPORT_TAIL,sizeof(REPORT_TAIL)-1);
   if(!FlushFileBuffers(f))throw std::runtime_error("Report flush failed");CloseHandle(f);f=INVALID_HANDLE_VALUE;
-  if(!MoveFileExW(extended(tmp).c_str(),extended(o.output).c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH))throw std::runtime_error("Cannot finalize report: "+utf8(errorText(GetLastError())));
  }catch(...){if(f!=INVALID_HANDLE_VALUE)CloseHandle(f);throw;}
+ const auto source = extended(tmp);
+ if(MoveFileExW(source.c_str(), extended(o.output).c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return o.output;
+ const DWORD error = GetLastError();
+ if(allowAlternate) {
+  const auto alternate = o.output.substr(0, o.output.find_last_of(L'\\') + 1) + reportName(L"DiskInventory-recovered-");
+  if(MoveFileExW(source.c_str(), extended(alternate).c_str(), MOVEFILE_WRITE_THROUGH)) return alternate;
+ }
+ throw std::runtime_error(utf8(L"无法将临时报告改名为指定的 HTML 文件。\n" + errorText(error) +
+   L"\n已写好的报告文件：" + tmp +
+   L"\n请将它复制到可写目录，然后去掉副本文件名末尾的 .tmp。"));
 }
 static std::wstring editText(HWND h){int len=GetWindowTextLengthW(h);std::wstring s(len+1,L'\0');GetWindowTextW(h,s.data(),len+1);s.resize(len);return s;}
 static void addRoots(Options& o,const std::wstring& text){size_t pos=0;while(pos<text.size()){size_t end=text.find(L'\n',pos);auto part=text.substr(pos,end==std::wstring::npos?end:end-pos);if(!part.empty()&&part.back()==L'\r')part.pop_back();if(!part.empty())o.roots.push_back(part);if(end==std::wstring::npos)break;pos=end+1;}}
-static std::wstring defaultOutput(){wchar_t dir[32768];GetModuleFileNameW(nullptr,dir,32768);std::wstring base=dir;base=base.substr(0,base.find_last_of(L'\\'));SYSTEMTIME s;GetLocalTime(&s);wchar_t name[80];swprintf(name,80,L"DiskInventory-%04u%02u%02u-%02u%02u%02u.html",s.wYear,s.wMonth,s.wDay,s.wHour,s.wMinute,s.wSecond);return join(base,name);}
-static DWORD WINAPI scanThread(void*){try{Inventory inv=scan(activeOptions);saveReport(inv,activeOptions);lastOutput=activeOptions.output;lastFailure.clear();}catch(const std::exception&e){lastFailure=e.what();}running=false;PostMessageW(mainWindow,WM_APP+1,0,0);return 0;}
+static std::wstring defaultOutput(bool gui){
+ wchar_t dir[32768]{};
+ if(gui && SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_PERSONAL, nullptr, SHGFP_TYPE_CURRENT, dir)))
+  return join(dir, reportName(L"DiskInventory-"));
+ const DWORD length = GetModuleFileNameW(nullptr, dir, 32768);
+ const std::wstring exe(dir, length);
+ return join(exe.substr(0, exe.find_last_of(L'\\')), reportName(L"DiskInventory-"));
+}
+static DWORD WINAPI scanThread(void*){try{Inventory inv=scan(activeOptions);lastOutput=saveReport(inv,activeOptions,true);lastFailure.clear();}catch(const std::exception&e){lastFailure=e.what();}running=false;PostMessageW(mainWindow,WM_APP+1,0,0);return 0;}
 static HWND control(const wchar_t* cls, const wchar_t* text, DWORD style, int id) {
  HWND child = CreateWindowExW(wcscmp(cls, L"EDIT") == 0 ? WS_EX_CLIENTEDGE : 0,
      cls, text, WS_CHILD | WS_VISIBLE | style, 0, 0, 0, 0,
@@ -270,36 +302,41 @@ static void layoutWindow(HWND window) {
  GetClientRect(window, &client);
  const int width = client.right;
  const int height = client.bottom;
- const int margin = 20;
+ const int margin = uiPixels(20);
  const int right = width - margin;
- const int sideButtonX = right - 150;
- const int editWidth = sideButtonX - margin - 12;
- const int pathsY = 76;
- const int statusY = height - 56;
- const int actionsY = statusY - 50;
- const int outputY = actionsY - 47;
- const int optionsY = outputY - 63;
- const int pathsHeight = optionsY - pathsY - 10;
+ const int sideButtonWidth = uiPixels(166);
+ const int sideButtonX = right - sideButtonWidth;
+ const int editWidth = sideButtonX - margin - uiPixels(12);
+ const int pathsY = uiPixels(84);
+ const int statusY = height - uiPixels(64);
+ const int actionsY = statusY - uiPixels(49);
+ const int outputY = actionsY - uiPixels(48);
+ const int optionsY = outputY - uiPixels(65);
+ const int pathsHeight = optionsY - pathsY - uiPixels(10);
 
  auto place = [window](int id, int x, int y, int w, int h) {
-  MoveWindow(GetDlgItem(window, id), x, y, w, h, TRUE);
+  SetWindowPos(GetDlgItem(window, id), nullptr, x, y, w, h,
+               SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
  };
- place(titleId, margin, 18, right - margin, 28);
- place(rootLabelId, margin, 52, editWidth, 24);
- place(clearRootsId, sideButtonX, 46, 150, 25);
+ place(titleId, margin, uiPixels(16), right - margin, uiPixels(30));
+ place(rootLabelId, margin, uiPixels(51), editWidth, uiPixels(30));
+ place(clearRootsId, sideButtonX, uiPixels(46), sideButtonWidth, uiPixels(32));
  place(101, margin, pathsY, editWidth, pathsHeight);
- place(102, sideButtonX, pathsY, 150, 33);
- place(103, sideButtonX, pathsY + 39, 150, 33);
- place(104, margin, optionsY + 3, 310, 26);
- place(105, right - 206, optionsY, 206, 31);
- place(outputLabelId, margin, outputY - 27, right - margin, 23);
- place(106, margin, outputY + 1, editWidth, 29);
- place(107, sideButtonX, outputY, 150, 31);
- place(108, margin, actionsY, 184, 38);
- place(109, margin + 196, actionsY, 100, 38);
- place(110, margin + 308, actionsY, 105, 38);
- place(reportFolderId, margin + 425, actionsY, 133, 38);
- place(111, margin, statusY, right - margin, 45);
+ place(102, sideButtonX, pathsY, sideButtonWidth, uiPixels(35));
+ place(103, sideButtonX, pathsY + uiPixels(41), sideButtonWidth, uiPixels(35));
+ place(104, margin, optionsY, uiPixels(310), uiPixels(34));
+ place(105, right - uiPixels(206), optionsY, uiPixels(206), uiPixels(34));
+ place(outputLabelId, margin, outputY - uiPixels(29), right - margin, uiPixels(27));
+ place(106, margin, outputY + uiPixels(1), editWidth, uiPixels(34));
+ place(107, sideButtonX, outputY, sideButtonWidth, uiPixels(36));
+ place(108, margin, actionsY, uiPixels(212), uiPixels(40));
+ place(109, margin + uiPixels(224), actionsY, uiPixels(110), uiPixels(40));
+ place(110, margin + uiPixels(346), actionsY, uiPixels(110), uiPixels(40));
+ place(reportFolderId, margin + uiPixels(468), actionsY, uiPixels(142), uiPixels(40));
+ place(111, margin, statusY, right - margin, uiPixels(52));
+
+ // Erase the old positions as well as repainting the controls at their new positions.
+ RedrawWindow(window, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN);
 }
 
 static void setScanControls(HWND window, bool busy, bool reportAvailable) {
@@ -314,7 +351,7 @@ static void setScanControls(HWND window, bool busy, bool reportAvailable) {
 }
 
 static LRESULT CALLBACK windowProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
- if(msg==WM_CREATE){mainWindow=h;uiFont=CreateFontW(-16,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Microsoft YaHei UI");
+ if(msg==WM_CREATE){mainWindow=h;uiFont=CreateFontW(-uiPixels(20),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Microsoft YaHei UI");
   control(L"STATIC", L"磁盘文件清单  0.1 测试版", 0, titleId);
   control(L"STATIC", L"扫描路径（每行一个，也可拖入文件夹）", 0, rootLabelId);
   control(L"BUTTON", L"清空路径", WS_TABSTOP, clearRootsId);
@@ -325,7 +362,7 @@ static LRESULT CALLBACK windowProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
   adminButton = control(L"BUTTON", isAdmin() ? L"当前已是管理员" : L"以管理员重启…", WS_TABSTOP, 105);
   if(isAdmin()) EnableWindow(adminButton, FALSE);
   control(L"STATIC", L"离线 HTML 输出位置", 0, outputLabelId);
-  outEdit = control(L"EDIT", defaultOutput().c_str(), ES_AUTOHSCROLL | WS_TABSTOP, 106);
+  outEdit = control(L"EDIT", L"", ES_AUTOHSCROLL | WS_TABSTOP, 106);
   control(L"BUTTON", L"另存为…", WS_TABSTOP, 107);
   control(L"BUTTON", L"开始扫描并生成报告", WS_TABSTOP | BS_DEFPUSHBUTTON, 108);
   cancelButton = control(L"BUTTON", L"取消扫描", WS_TABSTOP, 109);
@@ -341,7 +378,7 @@ static LRESULT CALLBACK windowProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
   return 0;
  }
  if(msg == WM_GETMINMAXINFO) {
-  RECT minimum{0, 0, minClientWidth, minClientHeight};
+  RECT minimum{0, 0, uiPixels(minClientWidth), uiPixels(minClientHeight)};
   AdjustWindowRectEx(&minimum, windowStyle, FALSE, 0);
   auto* limits = reinterpret_cast<MINMAXINFO*>(lp);
   limits->ptMinTrackSize.x = minimum.right - minimum.left;
@@ -380,7 +417,9 @@ static LRESULT CALLBACK windowProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
  if(msg == WM_APP + 1) {
   setScanControls(h, false, lastFailure.empty());
   if(lastFailure.empty()) {
-   SetWindowTextW(statusText, (L"报告已生成：" + lastOutput).c_str());
+   const bool alternate = !equalPath(lastOutput, activeOptions.output);
+   if(alternate) SetWindowTextW(outEdit, lastOutput.c_str());
+   SetWindowTextW(statusText, ((alternate ? L"无法替换指定文件，已另存：" : L"报告已生成：") + lastOutput).c_str());
   } else {
    SetWindowTextW(statusText, L"生成失败；详细信息见提示。");
    MessageBoxW(h, wide(lastFailure).c_str(), L"扫描或写入失败", MB_OK | MB_ICONERROR);
@@ -419,8 +458,23 @@ static LRESULT CALLBACK windowProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     addRoots(activeOptions, editText(rootEdit));
     activeOptions.output = editText(outEdit);
     activeOptions.hidden = SendMessageW(hiddenCheck, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    if(activeOptions.output.empty()) throw std::runtime_error(utf8(L"请选择报告保存位置。"));
     cleanOptions(activeOptions);
-    if(GetFileAttributesW(extended(activeOptions.output).c_str()) != INVALID_FILE_ATTRIBUTES &&
+    const auto separator = activeOptions.output.find_last_of(L'\\');
+    const auto parent = normalize(activeOptions.output.substr(0, separator + 1));
+    const DWORD parentAttrs = GetFileAttributesW(extended(parent).c_str());
+    // GetFileAttributesW cannot query the root of a UNC share directly.
+    const bool shareRoot = parent.rfind(L"\\\\", 0) == 0 &&
+                           std::count(parent.begin() + 2, parent.end(), L'\\') == 1;
+    if(!shareRoot && (parentAttrs == INVALID_FILE_ATTRIBUTES || !(parentAttrs & FILE_ATTRIBUTE_DIRECTORY)))
+     throw std::runtime_error(utf8(L"报告保存目录无法访问，请点「另存为」选择其他目录。\n" + parent));
+    const auto tmp = activeOptions.output + L".tmp";
+    if(GetFileAttributesW(extended(tmp).c_str()) != INVALID_FILE_ATTRIBUTES)
+     throw std::runtime_error(utf8(L"发现已有临时报告，请点「另存为」换一个文件名。\n" + tmp));
+    const DWORD targetAttrs = GetFileAttributesW(extended(activeOptions.output).c_str());
+    if(targetAttrs != INVALID_FILE_ATTRIBUTES && (targetAttrs & FILE_ATTRIBUTE_DIRECTORY))
+     throw std::runtime_error(utf8(L"报告文件名与已有文件夹重名，请点「另存为」换一个文件名。"));
+    if(targetAttrs != INVALID_FILE_ATTRIBUTES &&
        MessageBoxW(h, L"输出报告已经存在，是否覆盖？", L"覆盖报告", MB_YESNO | MB_ICONQUESTION) != IDYES) return 0;
     cancelScan = false;
     progressFiles = 0;
@@ -452,13 +506,20 @@ static LRESULT CALLBACK windowProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
 }
 static void logLine(const std::wstring&s){HANDLE h=GetStdHandle(STD_OUTPUT_HANDLE);if(h&&h!=INVALID_HANDLE_VALUE){DWORD n;auto a=utf8(s+L"\r\n");WriteFile(h,a.data(),(DWORD)a.size(),&n,nullptr);}}
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
- SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOOPENFILEERRORBOX);int argc=0;LPWSTR* argv=CommandLineToArgvW(GetCommandLineW(),&argc);Options o;o.output=defaultOutput();bool gui=argc==1;
+ SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOOPENFILEERRORBOX);int argc=0;LPWSTR* argv=CommandLineToArgvW(GetCommandLineW(),&argc);Options o;bool gui=argc==1;
  try{
   for(int i=1;i<argc;i++){std::wstring a=argv[i];if(a==L"--gui")gui=true;else if(a==L"--include-hidden")o.hidden=true;else if((a==L"--root"||a==L"--output"||a==L"--engine")&&i+1<argc){auto value=std::wstring(argv[++i]);if(a==L"--root")o.roots.push_back(value);else if(a==L"--output")o.output=value;else o.engine=value;}else if(a==L"--help"){AttachConsole(ATTACH_PARENT_PROCESS);logLine(L"DiskInventory --root PATH [--root PATH] --output FILE.html [--include-hidden] [--engine auto|directory|mft] [--gui]");LocalFree(argv);return 0;}else throw std::runtime_error("Unknown or incomplete argument: "+utf8(a));}
   LocalFree(argv);argv=nullptr;
+  if(o.output.empty()) o.output=defaultOutput(gui);
   if(!gui){AttachConsole(ATTACH_PARENT_PROCESS);cleanOptions(o);auto inv=scan(o);saveReport(inv,o);logLine(L"Report: "+o.output+L"; files="+std::to_wstring(inv.files)+L"; directories="+std::to_wstring(inv.folders));return inv.cancelled?3:inv.errors?2:0;}
-  CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);SetProcessDPIAware();WNDCLASSW wc{};wc.lpfnWndProc=windowProc;wc.hInstance=instance;wc.lpszClassName=L"DiskInventoryWindow";wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);wc.hbrBackground=(HBRUSH)(COLOR_WINDOW+1);RegisterClassW(&wc);
-  RECT initial{0, 0, 758, 412};
+  CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
+  SetProcessDPIAware();
+  if(HDC screen = GetDC(nullptr)) {
+   uiDpi = GetDeviceCaps(screen, LOGPIXELSX);
+   ReleaseDC(nullptr, screen);
+  }
+  WNDCLASSW wc{};wc.lpfnWndProc=windowProc;wc.hInstance=instance;wc.lpszClassName=L"DiskInventoryWindow";wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);wc.hbrBackground=(HBRUSH)(COLOR_WINDOW+1);RegisterClassW(&wc);
+  RECT initial{0, 0, uiPixels(790), uiPixels(430)};
   AdjustWindowRectEx(&initial, windowStyle, FALSE, 0);
   HWND win=CreateWindowExW(0,wc.lpszClassName,L"磁盘文件清单 · 离线 HTML 扫描器",windowStyle,CW_USEDEFAULT,CW_USEDEFAULT,initial.right-initial.left,initial.bottom-initial.top,nullptr,nullptr,instance,nullptr);
   if(!win)throw std::runtime_error("Cannot create window");if(!o.roots.empty()){std::wstring roots;for(auto&r:o.roots){if(!roots.empty())roots+=L"\r\n";roots+=r;}SetWindowTextW(rootEdit,roots.c_str());}SetWindowTextW(outEdit,o.output.c_str());if(o.hidden)SendMessageW(hiddenCheck,BM_SETCHECK,BST_CHECKED,0);ShowWindow(win,show);MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){if(!IsDialogMessageW(win,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}CoUninitialize();return 0;
