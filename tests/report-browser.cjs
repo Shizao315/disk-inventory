@@ -42,8 +42,16 @@ const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFile
   assert((await page.locator('#address').inputValue()).endsWith('资料'));
   assert((await page.locator('#folder-vrows .selected').innerText()).includes("中文&'记录.bin"));
   await page.locator('#up').click();
+  const nested=page.locator('#folder-vrows .row').filter({has:page.locator('.filename',{hasText:"中文&'记录.bin"})});
+  assert((await nested.locator('.path').innerText()).endsWith("\\资料\\中文&'记录.bin"));
+  assert.equal(await nested.locator('.size').innerText(),'1 KiB');
+  assert.equal(await nested.getByRole('button',{name:'复制类型'}).innerText(),'BIN');
+  await page.locator('#include-descendants').uncheck();
+  assert.equal(await nested.count(),0);
+  await page.locator('#include-descendants').check();
+  assert.equal(await nested.count(),1);
   await page.locator('#folder-vrows .row').filter({hasText:'empty'}).dblclick();
-  assert((await page.locator('#folder-vrows').innerText()).includes('没有符合条件'));
+  assert((await page.locator('#folder-vrows').innerText()).includes('没有已扫描的条目'));
   await page.locator('#back').click();await page.locator('#forward').click();
   assert((await page.locator('#address').inputValue()).endsWith('empty'));
   await page.getByRole('button',{name:'双栏',exact:true}).click();
@@ -73,6 +81,12 @@ const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFile
   await page.locator('#size-vport').evaluate(el=>{el.scrollTop=el.scrollHeight;});
   await page.waitForTimeout(100);
   assert((await page.locator('#size-vrows .row').last().innerText()).includes('item-0.bin'));
+  await page.locator('#filter').fill('item-6000.bin');
+  await page.locator('#run-search').click();
+  await page.locator('#size-vrows .locate').click();
+  assert((await page.locator('#folder-page').innerText()).includes('5,001'));
+  assert.equal(await page.locator('#folder-vrows .selected .filename').innerText(),'item-6000.bin');
+  await page.locator('#clear-filter').click();
   // The desktop host supplies one fresh directory, never a repeated full scan.
   // Check deletion/addition/metadata changes, totals and immutable report JSON.
   const rawBefore=await page.locator('#scan-data').textContent();
@@ -91,12 +105,31 @@ const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFile
   // A large folder made of many tiny files must stay large even when the
   // large-file filter matches nothing. Parent totals include deep descendants.
   const MiB=1024*1024,smallTotal=6000*1024,mixedTotal=20*MiB+2048+512;
-  const folderNodes=[[-1,'C:\\FolderRank',true,String(smallTotal+mixedTotal),null,null,16,'ok',0,false],[0,'ManySmall',true,String(smallTotal),null,null,16,'ok',0,true],[0,'Mixed',true,String(mixedTotal),null,null,16,'ok',0,true],[2,'Deep',true,String(20*MiB+2048),null,null,16,'ok',0,true],[0,'Unreadable',true,'0',null,null,16,'unreadable',5,false]];
+  const folderNodes=[[-1,'C:\\Folder Rank',true,String(smallTotal+mixedTotal),null,null,16,'ok',0,false],[0,'ManySmall',true,String(smallTotal),null,null,16,'ok',0,true],[0,'Mixed',true,String(mixedTotal),null,null,16,'ok',0,true],[2,'Deep',true,String(20*MiB+2048),null,null,16,'ok',0,true],[0,'Unreadable',true,'0',null,null,16,'unreadable',5,false]];
   for(let i=0;i<6000;i++)folderNodes.push([1,'small-'+i+'.bin',false,'1024',null,null,0,'ok',0,true]);
   folderNodes.push([3,'keep-big.bin',false,String(20*MiB),null,null,0,'ok',0,true],[3,'tiny.txt',false,'2048',null,null,0,'ok',0,true],[2,'keep-note.txt',false,'512',null,null,0,'ok',0,true]);
   const folderPayload={...payload,version:'folder-ranking-test',errors:1,nodes:folderNodes};
   const foldersReport=path.join(out,'synthetic-folder-ranking.html');fs.writeFileSync(foldersReport,template.replace('<!--DISK_DATA-->',()=>JSON.stringify(folderPayload)));
   await page.goto(pathToFileURL(foldersReport).href);await page.waitForFunction(()=>document.getElementById('loading').hidden);
+  await page.getByRole('button',{name:'目录浏览',exact:true}).click();
+  assert((await page.locator('#folder-scope-count').innerText()).includes('6,003'));
+  assert((await page.locator('#folder-vrows .row').count())<50);
+  await page.locator('#folder-next').click();
+  assert((await page.locator('#folder-page').innerText()).includes('5,001'));
+  await page.locator('#filter').fill('path:Mixed KEEP *.bin');
+  await page.waitForFunction(()=>document.body.dataset.mode==='split');
+  assert.deepEqual(await page.locator('#size-vrows .filename').allTextContents(),['keep-big.bin']);
+  assert((await page.locator('#folder-scope-count').innerText()).includes('6,003'));
+  await page.locator('#filter').fill('"C:\\Folder Rank\\Mixed\\Deep\\" ext:TXT');
+  await page.locator('#filter').press('Enter');
+  assert.equal(await page.locator('body').getAttribute('data-mode'),'search');
+  assert.deepEqual(await page.locator('#size-vrows .filename').allTextContents(),['tiny.txt']);
+  await page.locator('#size-vrows .locate').click();
+  assert((await page.locator('#address').inputValue()).endsWith('\\Mixed\\Deep'));
+  assert.deepEqual(await page.locator('#folder-vrows .filename').allTextContents(),['keep-big.bin','tiny.txt']);
+  assert.equal(await page.locator('#folder-vrows .selected .filename').innerText(),'tiny.txt');
+  await page.locator('#clear-filter').click();
+  await page.locator('#up').click();await page.locator('#up').click();
   await page.getByRole('button',{name:'文件夹大小排行',exact:true}).click();
   assert.equal(await page.locator('body').getAttribute('data-mode'),'folders');
   assert.equal(await page.locator('#dirrank-vrows .filename').first().innerText(),'Mixed');
@@ -137,7 +170,7 @@ const fs=require('fs'),path=require('path'),assert=require('assert'),{pathToFile
   assert.equal(await mixed.getAttribute('data-file-count'),'2');
   assert.equal(await page.locator('#dirrank-vrows .filename').first().innerText(),'ManySmall');
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-  fs.writeFileSync(path.join(out,'browser-results.json'),JSON.stringify({status:'PASS',scope:replay?'final HTML template replay with earlier real scan data':sourceVersion.includes('dev-python')?'Python source scanner-generated report':'native executable-generated report',source_version:sourceVersion,template_sha256:require('crypto').createHash('sha256').update(template).digest('hex'),browser:await browser.version(),externalRequests:external.length,pageErrors:errors,checks:['size numeric order','mode switching','locate directory','folder navigation/back/forward','filter','file details/local URL','12001-record virtualization and full pagination','click to copy','native reveal bridge/offline fallback','24px scrollbars and reachable vertical scrolling','session deletion/addition/metadata and immutable report','failed/stale refresh preserves records','recursive folder ranking and 6000 small files','separate filtered file sum and unchanged folder total','folder drilldown/depth/overlap/partial markers','folder aggregates refresh after confirmed deletion']},null,2));
+  fs.writeFileSync(path.join(out,'browser-results.json'),JSON.stringify({status:'PASS',scope:replay?'final HTML template replay with earlier real scan data':sourceVersion.includes('dev-python')?'Python source scanner-generated report':'native executable-generated report',source_version:sourceVersion,template_sha256:require('crypto').createHash('sha256').update(template).digest('hex'),browser:await browser.version(),externalRequests:external.length,pageErrors:errors,checks:['size numeric order','mode switching','locate directory','folder navigation/back/forward','global file search by name, path, extension, wildcard and combined terms','unfiltered recursive directory browsing and direct-only toggle','locate selected row beyond the first page','file details/local URL','12001-record virtualization and full pagination','click to copy','native reveal bridge/offline fallback','24px scrollbars and reachable vertical scrolling','session deletion/addition/metadata and immutable report','failed/stale refresh preserves records','recursive folder ranking and 6000 small files','separate filtered file sum and unchanged folder total','folder drilldown/depth/overlap/partial markers','folder aggregates refresh after confirmed deletion']},null,2));
   console.log('Browser report checks: PASS');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

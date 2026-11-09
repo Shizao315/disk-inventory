@@ -9,18 +9,30 @@
 *::-webkit-scrollbar{width:24px;height:24px}*::-webkit-scrollbar-track{background:#e8edf5;border-radius:8px}*::-webkit-scrollbar-thumb{background:#7c8da9;border:4px solid #e8edf5;border-radius:12px;min-height:52px;min-width:52px}*::-webkit-scrollbar-thumb:hover{background:#48658e}*::-webkit-scrollbar-corner{background:#e8edf5}
 .table-scroll{overflow:hidden}.grid{grid-template-columns:250px 120px 100px 174px 174px 360px 230px;width:1408px}.columns{position:relative;top:auto}.vport{height:440px;width:100%;overflow:auto;scrollbar-gutter:stable}.spacer,.vrows{width:1408px}.row{height:40px;font-size:13px}.actions{display:flex;gap:6px;align-items:center}.row .locate,.row .reveal{font-size:12px;padding:4px 7px;flex-shrink:0}.copyable{cursor:copy}.copyable:hover{background:#e2edff;text-decoration:underline;text-underline-offset:3px}.copyable:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}.tree{max-height:475px}.hint{overflow-wrap:anywhere}.session-note{color:#8a5800}
 #directory-ranking{display:none}body[data-mode="folders"] main{grid-template-columns:minmax(0,1fr)}body[data-mode="folders"] #ranking,body[data-mode="folders"] #explorer{display:none}body[data-mode="folders"] #directory-ranking{display:block}.directory-grid{grid-template-columns:250px 180px 220px 145px 80px 325px 208px}.filters{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.filters select,.directory-controls select,.directory-controls input{border:1px solid var(--line);border-radius:5px;padding:6px;color:var(--ink);background:white}.directory-controls{padding:10px 14px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}.directory-controls input[type=number]{width:82px}.directory-summary{padding:8px 14px;font-size:12px;color:var(--muted);background:#f8fafc;border-bottom:1px solid var(--line);overflow-wrap:anywhere}#directory-scope-path{max-width:460px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.matched{color:#245bd6}
+body[data-mode="search"] main{grid-template-columns:minmax(0,1fr)}
+body[data-mode="search"] #explorer{display:none}
+.toolbar{align-items:flex-start;flex-direction:column}
+.modes,.navigation{flex-wrap:wrap}
+.filters{width:100%}
+.search-field{display:flex;align-items:center;gap:7px;flex:1 1 330px}
+#filter{width:100%;min-width:100px}
+.folder-scope{display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:12px}
 </style></head><body data-mode="split">
 <header><h1>磁盘文件清单</h1><p class="sub" id="scan-time">正在读取内嵌扫描数据…</p><div class="stats"><div><strong id="file-count">—</strong><span>文件</span></div><div><strong id="folder-count">—</strong><span>文件夹（含扫描根目录）</span></div><div><strong id="total-size">—</strong><span>已知逻辑大小 · 按路径计数</span></div><div><strong id="duration">—</strong><span>扫描耗时</span></div></div></header>
 <div class="notice" id="notice" role="status">正在初始化报告。若长时间无内容，请使用较新的 Edge、Chrome 或 Firefox。</div>
 <div class="notice" id="report-context" role="status" hidden></div>
-<div class="toolbar"><div class="modes" aria-label="显示方式"><button data-mode="size">大小排序</button><button data-mode="folders">文件夹大小排行</button><button data-mode="explorer">目录浏览</button><button data-mode="split" class="active">双栏</button></div><div class="filters"><input id="filter" aria-label="筛选文件名" placeholder="按文件名筛选…"><label>最小文件大小 <select id="min-size" aria-label="最小文件大小"><option value="0">全部大小</option><option value="1048576">≥ 1 MiB</option><option value="10485760">≥ 10 MiB</option><option value="104857600">≥ 100 MiB</option><option value="1073741824">≥ 1 GiB</option></select></label><button id="clear-filter">清除筛选</button></div></div>
+<div class="toolbar">
+ <div class="modes" aria-label="显示方式"><button data-mode="search">全局搜索</button><button data-mode="size">大小排序</button><button data-mode="folders">文件夹大小排行</button><button data-mode="explorer">目录浏览</button><button data-mode="split" class="active">双栏</button></div>
+ <div class="filters"><label class="search-field">搜索全部文件<input id="filter" type="search" maxlength="512" autocomplete="off" spellcheck="false" placeholder="文件名、路径、*.pdf 或 ext:mp4" aria-describedby="search-help"></label><button id="run-search">搜索</button><label>最小文件大小 <select id="min-size" aria-label="最小文件大小"><option value="0">全部大小</option><option value="1048576">≥ 1 MiB</option><option value="10485760">≥ 10 MiB</option><option value="104857600">≥ 100 MiB</option><option value="1073741824">≥ 1 GiB</option></select></label><button id="clear-filter">清除筛选</button></div>
+ <span id="search-help" class="hint">搜索本报告中的所有文件。多个词用空格分开，带空格的名称或路径用双引号。</span>
+</div>
 <div id="loading">正在建立目录关系并按文件大小排序…</div>
 <main id="main-content" hidden>
 <section class="panel" id="directory-ranking"><div class="panel-title"><h2>文件夹大小排行</h2><span class="hint">总大小包含全部已扫描子目录；筛选合计单独计算</span></div><div class="directory-controls"><button id="directory-up" aria-label="文件夹排行上一级">↑ 上一级</button><span id="directory-scope-path" class="copyable" title="点击复制当前范围路径"></span><select id="directory-scope" aria-label="文件夹排行范围"><option value="children">当前目录的子文件夹</option><option value="all">全部文件夹（父子目录可能重叠）</option></select><label>仅显示第 <input id="directory-depth" type="number" min="0" step="1" placeholder="不限" aria-label="文件夹相对层级"> 层</label><button id="directory-show-files">查看当前目录文件</button></div><div class="directory-summary" id="directory-summary"></div><div class="table-scroll"><div class="grid directory-grid columns"><span>文件夹名称</span><span><button id="directory-sort-total">总大小（含子目录） ↓</button></span><span><button id="directory-sort-matched">符合筛选条件的文件合计</button></span><span>文件数（含子目录）</span><span>层级</span><span>完整路径</span><span>操作</span></div><div class="vport" id="dirrank-vport"><div class="spacer" id="dirrank-spacer"><div class="vrows" id="dirrank-vrows"></div></div></div></div><div class="pagination"><button id="dirrank-prev">上一页</button><span id="dirrank-page"></span><button id="dirrank-next">下一页</button></div><div class="selection"><span id="dirrank-selection">点击文件夹条目选择完整路径；双击下钻查看子文件夹</span><button id="dirrank-copy">复制路径</button></div></section>
-<section class="panel" id="ranking"><div class="panel-title"><h2>全部文件 · 大小排行</h2><span class="hint">点击“定位目录”联动右侧</span></div><div class="table-scroll"><div class="grid columns"><span>名称</span><span><button id="sort-size">大小 ↓</button></span><span>类型</span><span>创建时间</span><span>最后修改时间</span><span>完整路径</span><span>操作</span></div><div class="vport" id="size-vport"><div class="spacer" id="size-spacer"><div class="vrows" id="size-vrows"></div></div></div></div><div class="pagination"><button id="size-prev">上一页</button><span id="size-page"></span><button id="size-next">下一页</button></div><div class="selection"><span id="size-selection">选择文件查看完整路径</span><button id="size-copy">复制路径</button></div></section>
-<section class="panel" id="explorer"><div class="panel-title"><h2>目录浏览</h2><span class="hint">双击文件夹进入</span></div><div class="navigation"><button id="back" aria-label="后退">←</button><button id="forward" aria-label="前进">→</button><button id="up" aria-label="上一级">↑</button><input class="address" id="address" aria-label="当前路径，按回车跳转到扫描过的目录"></div><div id="folder-status" class="folder-status" hidden></div><div class="explorer-body"><nav class="tree" id="tree" aria-label="目录树"></nav><div class="table-scroll"><div class="grid columns"><span>名称</span><span>大小</span><span>类型</span><span>创建时间</span><span>最后修改时间</span><span>完整路径</span><span>操作 / 状态</span></div><div class="vport" id="folder-vport"><div class="spacer" id="folder-spacer"><div class="vrows" id="folder-vrows"></div></div></div></div></div><div class="pagination"><button id="folder-prev">上一页</button><span id="folder-page"></span><button id="folder-next">下一页</button></div><div class="selection"><span id="folder-selection"></span><button id="folder-copy">复制路径</button></div></section>
+<section class="panel" id="ranking"><div class="panel-title"><h2 id="rank-title">全部文件 · 大小排行</h2><span class="hint" id="rank-summary" aria-live="polite">点击“定位目录”查看文件所在目录</span></div><div class="table-scroll"><div class="grid columns"><span>名称</span><span><button id="sort-size">大小 ↓</button></span><span>类型</span><span>创建时间</span><span>最后修改时间</span><span>完整路径</span><span>操作</span></div><div class="vport" id="size-vport"><div class="spacer" id="size-spacer"><div class="vrows" id="size-vrows"></div></div></div></div><div class="pagination"><button id="size-prev">上一页</button><span id="size-page"></span><button id="size-next">下一页</button></div><div class="selection"><span id="size-selection">选择文件查看完整路径</span><button id="size-copy">复制路径</button></div></section>
+<section class="panel" id="explorer"><div class="panel-title"><h2>目录浏览</h2><span class="hint" id="folder-scope-count">双击文件夹进入</span></div><div class="navigation"><button id="back" aria-label="后退">←</button><button id="forward" aria-label="前进">→</button><button id="up" aria-label="上一级">↑</button><input class="address" id="address" aria-label="当前路径，按回车跳转到扫描过的目录"><label class="folder-scope"><input id="include-descendants" type="checkbox" checked>包含所有子目录的文件</label></div><div id="folder-status" class="folder-status" hidden></div><div class="explorer-body"><nav class="tree" id="tree" aria-label="目录树"></nav><div class="table-scroll"><div class="grid columns"><span>名称</span><span>大小</span><span>类型</span><span>创建时间</span><span>最后修改时间</span><span>完整路径</span><span>操作 / 状态</span></div><div class="vport" id="folder-vport"><div class="spacer" id="folder-spacer"><div class="vrows" id="folder-vrows"></div></div></div></div></div><div class="pagination"><button id="folder-prev">上一页</button><span id="folder-page"></span><button id="folder-next">下一页</button></div><div class="selection"><span id="folder-selection"></span><button id="folder-copy">复制路径</button></div></section>
 </main>
-<div class="details"><p>离线报告保存扫描时的元数据，目录浏览无需原磁盘在线。文件大小为逻辑长度；硬链接按路径计数。日期按当前浏览器本地时区显示。目录筛选保留文件夹，文件按名称匹配。</p><details><summary>扫描方式、完整性与诊断</summary><pre id="diagnostics"></pre></details></div>
+<div class="details"><p>离线报告保存扫描时的元数据，搜索和目录浏览无需原磁盘在线。文件大小为逻辑长度；硬链接按路径计数。日期按当前浏览器本地时区显示。目录浏览展示所选范围的已扫描文件，独立于全局搜索和大小筛选。</p><details><summary>扫描方式、完整性与诊断</summary><pre id="diagnostics"></pre></details></div>
 <dialog id="file-dialog"><h3 id="dialog-name"></h3><pre id="dialog-info"></pre><p class="hint">浏览器可能预览、下载或阻止本地文件。若无法打开，请复制路径到 Windows 资源管理器。</p><a id="open-file" target="_blank" rel="noopener noreferrer">尝试打开本地文件</a><button id="dialog-copy">复制路径</button><button id="dialog-close">关闭</button></dialog>
 <div id="toast" role="status" hidden></div>
 <div class="details session-note" id="session-state" role="status" hidden></div>
@@ -33,6 +45,8 @@ const $=id=>document.getElementById(id), data=JSON.parse($('scan-data').textCont
 const children=new Map(), roots=[], files=[], sizes=nodes.map(n=>n[3]===null?null:BigInt(n[3])), folderPaths=new Map();
 const ROW=40, PAGE=5000;
 let selectedSize=-1,selectedFolder=-1,current=-1,history=[],historyIndex=-1,descending=true,query='',toastTimer,dialogFile=-1;
+let searchTerms=[];
+const nameOrder=new Intl.Collator('zh-CN',{numeric:true});
 const expanded=new Set();
 const deleted=new Set();let sortedFiles=null,activeFiles=0,activeFolders=0,sessionAdded=0;const MAX_SESSION_ADDITIONS=20000;
 let minSize=0n,directoryStats=null,directorySort='total',directoryDescending=true,selectedDirectory=-1;
@@ -41,10 +55,11 @@ const stateText=n=>(states[n[7]]||n[7])+(n[8]?' (Windows '+n[8]+')':'');
 function path(id){if(folderPaths.has(id))return folderPaths.get(id);const chain=[];let cursor=id;while(cursor>=0&&!folderPaths.has(cursor)){chain.push(cursor);cursor=nodes[cursor][0];}let p=cursor>=0?folderPaths.get(cursor):'';while(chain.length){const i=chain.pop(),n=nodes[i];p=n[0]<0?n[1]:p.replace(/\\$/,'')+'\\'+n[1];if(n[2])folderPaths.set(i,p);}return p;}
 function human(value){if(value===null)return '未知';const n=BigInt(value),units=['B','KiB','MiB','GiB','TiB','PiB'];let u=0,base=1n;while(n>=base*1024n&&u<units.length-1){base*=1024n;u++;}return u===0?n.toString()+' B':(Number(n*100n/base)/100).toLocaleString('zh-CN',{maximumFractionDigits:2})+' '+units[u];}
 function date(value){if(!value)return '未知';const d=new Date(value);if(Number.isNaN(d.getTime()))return '未知';return d.toLocaleString('sv-SE',{hour12:false});}
-function type(n){if(n[2])return '文件夹';const dot=n[1].lastIndexOf('.');return dot>0&&dot<n[1].length-1?n[1].slice(dot+1).toUpperCase():'无扩展名';}
+function extension(name){const dot=name.lastIndexOf('.');return dot>0?name.slice(dot+1):'';}
+function type(n){return n[2]?'文件夹':extension(n[1]).toUpperCase()||'无扩展名';}
 function notify(text){$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,2600);}
 async function copy(text,label='路径'){try{if(window.diskInventoryHost){await new Promise((resolve,reject)=>window.diskInventoryHost.copyText(text,ok=>ok?resolve():reject()));}else if(navigator.clipboard&&isSecureContext){await navigator.clipboard.writeText(text);}else throw Error('Clipboard unavailable');notify(label+'已复制');return true;}catch{const field=document.createElement('textarea');field.value=text;field.style.cssText='position:fixed;left:-10000px;top:0';document.body.append(field);field.select();let ok=false;try{ok=document.execCommand('copy');}catch{}field.remove();if(ok){notify(label+'已复制');return true;}prompt('请复制'+label+'：',text);return false;}}
-function setMode(mode){document.body.dataset.mode=mode;document.querySelectorAll('button[data-mode]').forEach(b=>{const active=b.dataset.mode===mode;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});if(mode==='folders')refreshDirectoryRank();requestAnimationFrame(()=>{rank.render();folder.render();directoryRank.render();});}
+function setMode(mode){document.body.dataset.mode=mode;document.querySelectorAll('button[data-mode]').forEach(b=>{const active=b.dataset.mode===mode;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});if(mode==='folders')refreshDirectoryRank();updateRankSummary();requestAnimationFrame(()=>{rank.render();folder.render();directoryRank.render();});}
 function localUrl(p){if(p.startsWith('\\\\')){const parts=p.slice(2).split('\\');return 'file://'+parts.shift()+'/'+parts.map(encodeURIComponent).join('/');}return 'file:///'+p.split('\\').map((part,i)=>i===0&&/^[A-Za-z]:$/.test(part)?part:encodeURIComponent(part)).join('/');}
 function showFile(id){dialogFile=id;const n=nodes[id];$('dialog-name').textContent=n[1];$('dialog-info').textContent=path(id)+'\n\n大小：'+human(sizes[id])+'\n类型：'+type(n)+'\n创建时间：'+date(n[4])+'\n最后修改：'+date(n[5])+'\n状态：'+stateText(n);$('open-file').href=localUrl(path(id));$('file-dialog').showModal();}
 function span(value,cls,label,copyValue=value){const el=document.createElement('span');el.textContent=value;el.title=value;if(cls)el.className=cls;if(label){el.classList.add('copyable');el.title='点击复制'+label+'：'+copyValue;el.tabIndex=0;el.setAttribute('role','button');el.setAttribute('aria-label','复制'+label);el.addEventListener('click',()=>copy(copyValue,label));el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();copy(copyValue,label);}});}return el;}
@@ -52,27 +67,135 @@ let locationFolder='';
 function reveal(id){const n=nodes[id],p=path(id);if(window.diskInventoryHost){window.diskInventoryHost.revealPath(p,ok=>{if(!ok)notify('无法打开所在位置，请检查路径与权限');});return;}locationFolder=n[0]>=0?path(n[0]):p;$('location-path').textContent=locationFolder;$('open-folder').href=localUrl(locationFolder);$('location-dialog').showModal();}
 function makeRow(id,isRanking){const n=nodes[id],row=document.createElement('div');row.className='grid row'+(n[2]?' directory':'')+((isRanking?selectedSize:selectedFolder)===id?' selected':'');row.tabIndex=0;row.dataset.id=id;
  row.append(span((n[2]?'▸ ':'')+n[1],'filename','名称',n[1]),span(human(sizes[id])+(n[2]&&!n[9]?'（部分）':''),'size','大小（字节）',n[3]??'未知'),span(type(n),'','类型'),span(date(n[4]),'','创建时间'),span(date(n[5]),'','修改时间'),span(path(id),'path','完整路径'));
- const container=document.createElement('span');container.className='actions';container.title=stateText(n);if(isRanking){const b=document.createElement('button');b.textContent='定位目录';b.className='locate';b.addEventListener('click',e=>{e.stopPropagation();selectedSize=id;if(document.body.dataset.mode==='size')setMode('explorer');navigate(n[0],id);rank.render();});container.append(b);}const openLocation=document.createElement('button');openLocation.textContent='打开位置';openLocation.className='reveal';openLocation.title='打开文件所在位置';openLocation.addEventListener('click',e=>{e.stopPropagation();reveal(id);});container.append(openLocation);if(!isRanking&&n[7]!=='ok')container.append(span(stateText(n)));row.append(container);
+ const container=document.createElement('span');container.className='actions';container.title=stateText(n);
+ if(!n[2]&&(isRanking||n[0]!==current)){
+  const locate=document.createElement('button');locate.textContent='定位目录';locate.className='locate';
+  locate.addEventListener('click',e=>{
+   e.stopPropagation();
+   if(isRanking){
+    selectedSize=id;
+    $('size-selection').textContent=path(id);
+    const mode=document.body.dataset.mode;
+    if(mode==='size')setMode('explorer');
+    if(mode==='search')setMode('split');
+    rank.render();
+   }
+   navigate(n[0],id);
+  });
+  container.append(locate);
+ }
+ const openLocation=document.createElement('button');openLocation.textContent='打开位置';openLocation.className='reveal';openLocation.title='打开文件所在位置';openLocation.addEventListener('click',e=>{e.stopPropagation();reveal(id);});container.append(openLocation);if(!isRanking&&n[7]!=='ok')container.append(span(stateText(n)));row.append(container);
  function select(){const prefix=isRanking?'size':'folder';if(isRanking)selectedSize=id;else selectedFolder=id;$(prefix+'-selection').textContent=path(id);$(prefix+'-vrows').querySelectorAll('.selected').forEach(el=>el.classList.remove('selected'));row.classList.add('selected');}
  function open(){if(n[2])navigate(id);else showFile(id);}
  row.addEventListener('click',select);row.addEventListener('dblclick',open);row.addEventListener('keydown',e=>{if(e.target!==row)return;if(e.key==='Enter')open();if(e.key===' '){e.preventDefault();select();}});return row;}
 class VirtualTable{
  constructor(prefix,ranking,rowFactory=null){this.prefix=prefix;this.ranking=ranking;this.rowFactory=rowFactory;this.items=[];this.page=0;this.viewport=$(prefix+'-vport');this.viewport.addEventListener('scroll',()=>{this.viewport.previousElementSibling.style.transform='translateX(-'+this.viewport.scrollLeft+'px)';this.render();});$(prefix+'-prev').addEventListener('click',()=>this.turn(-1));$(prefix+'-next').addEventListener('click',()=>this.turn(1));}
- set(items,selected=-1){this.items=items;this.page=0;this.viewport.scrollTop=0;if(selected>=0){const index=items.indexOf(selected);if(index>=0){this.page=Math.floor(index/PAGE);this.viewport.scrollTop=(index%PAGE)*ROW;}}this.render();}
+ set(items,selected=-1){
+  const index=selected<0?-1:items.indexOf(selected);
+  this.items=items;
+  this.page=index<0?0:Math.floor(index/PAGE);
+  this.viewport.scrollTop=0;
+  this.render();
+  if(index>0){this.viewport.scrollTop=(index%PAGE)*ROW;this.render();}
+ }
  turn(delta){const max=Math.max(0,Math.ceil(this.items.length/PAGE)-1);this.page=Math.max(0,Math.min(max,this.page+delta));this.viewport.scrollTop=0;this.render();}
- render(){const start=this.page*PAGE,count=Math.min(PAGE,Math.max(0,this.items.length-start)),first=Math.max(0,Math.floor(this.viewport.scrollTop/ROW)-5),last=Math.min(count,first+Math.ceil((this.viewport.clientHeight||420)/ROW)+12);$(this.prefix+'-spacer').style.height=Math.max(count*ROW,80)+'px';const box=$(this.prefix+'-vrows');box.style.top=first*ROW+'px';box.replaceChildren();if(!count){const empty=document.createElement('div');empty.className='empty';empty.textContent=this.rowFactory?'该范围或层级没有子文件夹，可点击“查看当前目录文件”查看文件':this.ranking?'没有符合条件的文件':current>=0&&!nodes[current][9]?'此目录扫描不完整，无法断定为空':'此目录下没有符合条件的条目';box.append(empty);}for(let i=first;i<last;i++)box.append((this.rowFactory||makeRow)(this.items[start+i],this.ranking));$(this.prefix+'-page').textContent=this.items.length?(start+1).toLocaleString()+'–'+(start+count).toLocaleString()+' / '+this.items.length.toLocaleString():'0 条';$(this.prefix+'-prev').disabled=this.page===0;$(this.prefix+'-next').disabled=start+count>=this.items.length;}
+ render(){const start=this.page*PAGE,count=Math.min(PAGE,Math.max(0,this.items.length-start)),first=Math.max(0,Math.floor(this.viewport.scrollTop/ROW)-5),last=Math.min(count,first+Math.ceil((this.viewport.clientHeight||420)/ROW)+12);$(this.prefix+'-spacer').style.height=Math.max(count*ROW,80)+'px';const box=$(this.prefix+'-vrows');box.style.top=first*ROW+'px';box.replaceChildren();if(!count){const empty=document.createElement('div');empty.className='empty';empty.textContent=this.rowFactory?'该范围或层级没有子文件夹，可点击“查看当前目录文件”查看文件':this.ranking?'没有符合条件的文件':current>=0&&!nodes[current][9]?'此目录扫描不完整，无法断定为空':'此范围内没有已扫描的条目';box.append(empty);}for(let i=first;i<last;i++)box.append((this.rowFactory||makeRow)(this.items[start+i],this.ranking));$(this.prefix+'-page').textContent=this.items.length?(start+1).toLocaleString()+'–'+(start+count).toLocaleString()+' / '+this.items.length.toLocaleString():'0 条';$(this.prefix+'-prev').disabled=this.page===0;$(this.prefix+'-next').disabled=start+count>=this.items.length;}
 }
 const rank=new VirtualTable('size',true),folder=new VirtualTable('folder',false),directoryRank=new VirtualTable('dirrank',false,makeDirectoryRankRow);
 function renderTree(){const tree=$('tree');tree.replaceChildren();const stack=roots.slice().reverse().map(id=>[id,0]);let shown=0;while(stack.length&&shown<3000){const [id,depth]=stack.pop(),line=document.createElement('div');line.className='tree-line'+(current===id?' current':'');line.style.paddingLeft=Math.min(depth*12,220)+'px';const dirs=(children.get(id)||[]).filter(i=>!deleted.has(i)&&nodes[i][2]);const exp=document.createElement('button');exp.className='expand';exp.textContent=dirs.length?(expanded.has(id)?'▾':'▸'):'·';exp.setAttribute('aria-label','展开或折叠 '+nodes[id][1]);exp.addEventListener('click',()=>{if(expanded.has(id))expanded.delete(id);else expanded.add(id);renderTree();});const name=document.createElement('button');name.className='tree-name';name.textContent=nodes[id][1];name.title=path(id);name.addEventListener('click',()=>navigate(id));line.append(exp,name);tree.append(line);shown++;if(expanded.has(id))for(let i=dirs.length;i-->0;)stack.push([dirs[i],depth+1]);}if(stack.length){const hint=document.createElement('p');hint.className='hint';hint.textContent='目录树当前展开过多，请折叠部分分支；所有目录仍可从右侧逐层进入。';tree.append(hint);}}
-function refreshFolder(selected=-1){if(current<0){folder.set([]);return;}const n=nodes[current];$('address').value=path(current);$('back').disabled=historyIndex<=0;$('forward').disabled=historyIndex>=history.length-1;$('up').disabled=n[0]<0;$('folder-status').hidden=n[9]&&n[7]==='ok'&&!data.cancelled;$('folder-status').textContent='目录状态：'+stateText(n)+(n[9]?'':'；大小为已取得数据的小计')+(data.cancelled?'；扫描已取消':'');const list=(children.get(current)||[]).filter(id=>!deleted.has(id)&&(nodes[id][2]||fileMatches(id)));list.sort((a,b)=>Number(nodes[b][2])-Number(nodes[a][2])||nodes[a][1].localeCompare(nodes[b][1],'zh-CN'));folder.set(list,selected);$('folder-selection').textContent=path(selected>=0?selected:current);renderTree();notifyDirectory();if(document.body.dataset.mode==='folders')refreshDirectoryRank();}
+function refreshFolder(selected=-1){
+ if(current<0||deleted.has(current)){
+  folder.set([]);
+  $('folder-scope-count').textContent='没有可浏览的目录';
+  return;
+ }
+ const n=nodes[current],recursive=$('include-descendants').checked;
+ $('address').value=path(current);
+ $('back').disabled=historyIndex<=0;
+ $('forward').disabled=historyIndex>=history.length-1;
+ $('up').disabled=n[0]<0;
+ $('folder-status').hidden=n[9]&&n[7]==='ok'&&!data.cancelled;
+ $('folder-status').textContent='目录状态：'+stateText(n)+(n[9]?'':'；大小为已取得数据的小计')+(data.cancelled?'；扫描已取消':'');
+ const list=(children.get(current)||[]).filter(id=>!deleted.has(id));
+ list.sort((a,b)=>Number(nodes[b][2])-Number(nodes[a][2])||nameOrder.compare(nodes[a][1],nodes[b][1]));
+ const directories=list.filter(id=>nodes[id][2]),pending=recursive?directories.slice().reverse():[];
+ while(pending.length){
+  const dir=pending.pop();
+  for(const id of children.get(dir)||[]){
+   if(deleted.has(id))continue;
+   if(nodes[id][2])pending.push(id);
+   else list.push(id);
+  }
+ }
+ if(selected>=0&&!list.includes(selected)){selected=selectedFolder=-1;}
+ folder.set(list,selected);
+ $('folder-scope-count').textContent=(recursive?'包含子目录 · ':'仅当前层 · ')+(list.length-directories.length).toLocaleString()+' 个已扫描文件';
+ $('folder-selection').textContent=path(selected>=0?selected:current);
+ renderTree();
+ notifyDirectory();
+ if(document.body.dataset.mode==='folders')refreshDirectoryRank();
+}
 function navigate(id,selected=-1){if(id<0||deleted.has(id)||!nodes[id]?.[2])return;if(current!==id){history=history.slice(0,historyIndex+1);history.push(id);historyIndex++;}current=id;selectedFolder=selected;for(let p=nodes[id][0];p>=0;p=nodes[p][0])expanded.add(p);refreshFolder(selected);}
-function fileMatches(id){const n=nodes[id];return !deleted.has(id)&&!n[2]&&(!query||n[1].toLocaleLowerCase().includes(query))&&(minSize===0n||(sizes[id]!==null&&sizes[id]>=minSize));}
+function parseSearch(text){
+ const tokens=text.match(/(?:[^\s"]+|"[^"]*"?)+/g)||[];
+ const terms=[];
+ for(const token of tokens){
+  const value=token.replace(/"/g,'').toLowerCase();
+  if(!value)continue;
+  if(value.startsWith('ext:')){
+   const extensions=value.slice(4).split(';').map(ext=>ext.replace(/^\./,'')).filter(Boolean);
+   if(extensions.length)terms.push({extensions:new Set(extensions)});
+   continue;
+  }
+  const fullPath=value.startsWith('path:')||/[\\/]/.test(value)||/^[a-z]:/.test(value);
+  const pattern=(value.startsWith('path:')?value.slice(5):value).replace(/\//g,'\\');
+  if(pattern)terms.push({text:pattern,fullPath,glob:/[*?]/.test(pattern)});
+ }
+ return terms;
+}
+function wildcardMatches(text,pattern){
+ let i=0,j=0,star=-1,retry=0;
+ while(i<text.length){
+  if(pattern[j]==='*'){star=j++;retry=i;}
+  else if(pattern[j]==='?'||pattern[j]===text[i]){i++;j++;}
+  else if(star>=0){j=star+1;i=++retry;}
+  else return false;
+ }
+ while(pattern[j]==='*')j++;
+ return j===pattern.length;
+}
+function fileMatches(id){
+ const n=nodes[id],size=sizes[id];
+ if(deleted.has(id)||n[2]||(minSize>0n&&(size===null||size<minSize)))return false;
+ if(!searchTerms.length)return true;
+ const name=n[1].toLowerCase();
+ let fullPath;
+ for(const term of searchTerms){
+  if(term.extensions){
+   if(!term.extensions.has(extension(name)))return false;
+   continue;
+  }
+  const text=term.fullPath?(fullPath??=path(id).toLowerCase()):name;
+  if(term.glob?!wildcardMatches(text,term.text):!text.includes(term.text))return false;
+ }
+ return true;
+}
 function ensureDirectoryStats(){if(directoryStats)return;const stats=new Map();for(let i=0;i<nodes.length;i++){const n=nodes[i];if(n[2]&&!deleted.has(i))stats.set(i,{count:0,matched:0n,matchCount:0,unknown:0,directBytes:0n,depth:n[0]<0?0:(stats.get(n[0])?.depth??0)+1});}for(let i=nodes.length;i-->0;){if(deleted.has(i))continue;const n=nodes[i],parent=stats.get(n[0]);if(!parent)continue;if(n[2]){const s=stats.get(i);parent.count+=s.count;parent.matched+=s.matched;parent.matchCount+=s.matchCount;parent.unknown+=s.unknown;}else{parent.count++;parent.directBytes+=sizes[i]??0n;if(fileMatches(i)){parent.matchCount++;if(sizes[i]===null)parent.unknown++;else parent.matched+=sizes[i];}}}directoryStats=stats;}
 function openDirectoryRank(id){$('directory-scope').value='children';$('directory-depth').value='';navigate(id);}
 function makeDirectoryRankRow(id){const n=nodes[id],s=directoryStats.get(id),row=document.createElement('div');row.className='grid directory-grid row directory'+(selectedDirectory===id?' selected':'');row.tabIndex=0;row.dataset.id=id;row.dataset.totalBytes=sizes[id]?.toString()??'';row.dataset.matchedBytes=s.matched.toString();row.dataset.fileCount=s.count;row.dataset.depth=s.depth;const partial=!n[9]||n[7]!=='ok'||data.cancelled,partialText=partial?'（已知小计）':'';row.append(span(n[1],'filename','名称'),span(human(sizes[id])+partialText,'size total','文件夹总大小（字节）',n[3]??'未知'),span(human(s.matched)+((partial||s.unknown)?'（已知小计）':''),'size matched','筛选文件合计（字节）',s.matched.toString()),span(s.count.toLocaleString(),'file-count','已扫描文件数',String(s.count)),span(String(s.depth),'depth','层级'),span(path(id),'path','完整路径'));const actions=document.createElement('span');actions.className='actions';actions.title=stateText(n);const view=document.createElement('button');view.textContent='查看文件';view.className='locate';view.addEventListener('click',e=>{e.stopPropagation();navigate(id);setMode('explorer');});const open=document.createElement('button');open.textContent='打开位置';open.className='reveal';open.addEventListener('click',e=>{e.stopPropagation();reveal(id);});actions.append(view,open);row.append(actions);row.addEventListener('click',()=>{selectedDirectory=id;$('dirrank-selection').textContent=path(id);$('dirrank-vrows').querySelectorAll('.selected').forEach(el=>el.classList.remove('selected'));row.classList.add('selected');});row.addEventListener('dblclick',()=>openDirectoryRank(id));row.addEventListener('keydown',e=>{if(e.target===row&&e.key==='Enter')openDirectoryRank(id);});return row;}
-function refreshDirectoryRank(){if(current<0||deleted.has(current)){directoryRank.set([]);$('directory-summary').textContent='当前扫描目录已确认不存在，请重新扫描或打开其他报告。';return;}ensureDirectoryStats();const all=$('directory-scope').value==='all',depthText=$('directory-depth').value,depth=depthText===''?null:Number(depthText);let list=all?[...directoryStats.keys()]:(children.get(current)||[]).filter(id=>nodes[id][2]&&!deleted.has(id));if(depth!==null)list=list.filter(id=>directoryStats.get(id).depth===depth);list.sort((a,b)=>{const av=directorySort==='matched'?directoryStats.get(a).matched:sizes[a],bv=directorySort==='matched'?directoryStats.get(b).matched:sizes[b];if(av===null)return bv===null?0:1;if(bv===null)return -1;const cmp=av<bv?-1:av>bv?1:0;return (directoryDescending?-cmp:cmp)||nodes[a][1].localeCompare(nodes[b][1],'zh-CN')||a-b;});directoryRank.set(list);$('directory-scope-path').textContent=all?'全部扫描范围':path(current);$('directory-up').disabled=all||nodes[current][0]<0;$('directory-sort-total').textContent='总大小（含子目录）'+(directorySort==='total'?(directoryDescending?' ↓':' ↑'):'');$('directory-sort-matched').textContent='符合筛选条件的文件合计'+(directorySort==='matched'?(directoryDescending?' ↓':' ↑'):'');const s=directoryStats.get(current),partial=!nodes[current][9]||nodes[current][7]!=='ok'||data.cancelled?'（已知小计）':'';$('directory-summary').textContent=(all?'全部层级可能包含父子目录，行大小不可直接相加。 ':'当前目录总大小 '+human(sizes[current])+partial+'；直属文件合计 '+human(s.directBytes)+'；符合筛选条件的文件合计 '+human(s.matched)+partial+'（'+s.matchCount.toLocaleString()+' 个已扫描文件）。 ')+(minSize===0n?'全部大小':'最小文件大小 '+human(minSize))+(query?'；文件名包含“'+query+'”':'')+'。两列均包含已扫描的深层后代；层级只限制显示。扫描根目录为第 0 层；读取不完整项标记为已知小计。';}
+function refreshDirectoryRank(){if(current<0||deleted.has(current)){directoryRank.set([]);$('directory-summary').textContent='当前扫描目录已确认不存在，请重新扫描或打开其他报告。';return;}ensureDirectoryStats();const all=$('directory-scope').value==='all',depthText=$('directory-depth').value,depth=depthText===''?null:Number(depthText);let list=all?[...directoryStats.keys()]:(children.get(current)||[]).filter(id=>nodes[id][2]&&!deleted.has(id));if(depth!==null)list=list.filter(id=>directoryStats.get(id).depth===depth);list.sort((a,b)=>{const av=directorySort==='matched'?directoryStats.get(a).matched:sizes[a],bv=directorySort==='matched'?directoryStats.get(b).matched:sizes[b];if(av===null)return bv===null?0:1;if(bv===null)return -1;const cmp=av<bv?-1:av>bv?1:0;return (directoryDescending?-cmp:cmp)||nodes[a][1].localeCompare(nodes[b][1],'zh-CN')||a-b;});directoryRank.set(list);$('directory-scope-path').textContent=all?'全部扫描范围':path(current);$('directory-up').disabled=all||nodes[current][0]<0;$('directory-sort-total').textContent='总大小（含子目录）'+(directorySort==='total'?(directoryDescending?' ↓':' ↑'):'');$('directory-sort-matched').textContent='符合筛选条件的文件合计'+(directorySort==='matched'?(directoryDescending?' ↓':' ↑'):'');const s=directoryStats.get(current),partial=!nodes[current][9]||nodes[current][7]!=='ok'||data.cancelled?'（已知小计）':'';$('directory-summary').textContent=(all?'全部层级可能包含父子目录，行大小不可直接相加。 ':'当前目录总大小 '+human(sizes[current])+partial+'；直属文件合计 '+human(s.directBytes)+'；符合筛选条件的文件合计 '+human(s.matched)+partial+'（'+s.matchCount.toLocaleString()+' 个已扫描文件）。 ')+(minSize===0n?'全部大小':'最小文件大小 '+human(minSize))+(query?'；搜索“'+query+'”':'')+'。两列均包含已扫描的深层后代；层级只限制显示。扫描根目录为第 0 层；读取不完整项标记为已知小计。';}
 function compareFiles(a,b){if(sizes[a]===null)return sizes[b]===null?path(a).localeCompare(path(b)):1;if(sizes[b]===null)return -1;const cmp=sizes[a]<sizes[b]?-1:sizes[a]>sizes[b]?1:0;return (descending?-cmp:cmp)||path(a).localeCompare(path(b));}
-function refreshRank(resort=false){if(sortedFiles===null||resort)sortedFiles=files.filter(id=>!deleted.has(id)).sort(compareFiles);rank.set(query||minSize>0n?sortedFiles.filter(fileMatches):sortedFiles);$('sort-size').textContent='大小 '+(descending?'↓':'↑');}
+function updateRankSummary(){
+ const filtered=searchTerms.length||minSize>0n;
+ $('rank-title').textContent=filtered?'全局搜索结果':document.body.dataset.mode==='search'?'全局搜索':'全部文件 · 大小排行';
+ $('rank-summary').textContent=(filtered?'找到 '+rank.items.length.toLocaleString()+' 个文件 · ':'')+'点击“定位目录”查看文件所在目录';
+}
+function refreshRank(resort=false){
+ if(sortedFiles===null||resort)sortedFiles=files.filter(id=>!deleted.has(id)).sort(compareFiles);
+ rank.set(searchTerms.length||minSize>0n?sortedFiles.filter(fileMatches):sortedFiles);
+ $('sort-size').textContent='大小 '+(descending?'↓':'↑');
+ updateRankSummary();
+}
 function notifyDirectory(){if(current>=0&&window.diskInventoryHost)window.diskInventoryHost.directorySelected(path(current),data.hidden);}
 function updateSessionCounts(){$('file-count').textContent=activeFiles.toLocaleString();$('folder-count').textContent=activeFolders.toLocaleString();$('total-size').textContent=human(roots.reduce((sum,id)=>sum+(deleted.has(id)?0n:sizes[id]??0n),0n));}
 function adjustAncestors(id,delta){for(let p=id;p>=0;p=nodes[p][0]){sizes[p]=(sizes[p]??0n)+delta;nodes[p][3]=sizes[p].toString();}}
@@ -95,9 +218,38 @@ function init(){
  $('diagnostics').textContent='版本：'+data.version+'\n引擎：\n'+data.engines.join('\n')+'\n\n说明：\n'+data.notes.join('\n')+'\n\n错误/未知：'+data.errors+'；未跟随目录：'+data.skipped+'；排除隐藏条目：'+data.hiddenSkipped+'\n目录小计不等同于实际磁盘占用；本报告不是原子快照。\n分页每页 '+PAGE+' 条，页面只绘制可见行；所有记录均保存在本报告中。';
  activeFiles=files.length;activeFolders=nodes.length-files.length;refreshRank();if(roots.length)navigate(roots[0]);$('loading').hidden=true;$('main-content').hidden=false;setMode('split');window.diskInventory.ready=true;notifyDirectory();notifyReportContext();
 }
-document.querySelectorAll('button[data-mode]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+document.querySelectorAll('button[data-mode]').forEach(b=>b.addEventListener('click',()=>{
+ setMode(b.dataset.mode);
+ if(b.dataset.mode==='search')$('filter').focus();
+}));
 $('sort-size').addEventListener('click',()=>{descending=!descending;refreshRank(true);});
-function applyFilters(){query=$('filter').value.toLocaleLowerCase();minSize=BigInt($('min-size').value);directoryStats=null;refreshRank();refreshFolder(selectedFolder);}let filterTimer;$('filter').addEventListener('input',()=>{clearTimeout(filterTimer);filterTimer=setTimeout(applyFilters,200);});$('min-size').addEventListener('change',()=>{clearTimeout(filterTimer);applyFilters();});$('clear-filter').addEventListener('click',()=>{clearTimeout(filterTimer);$('filter').value='';$('min-size').value='0';applyFilters();});
+function applyFilters(){
+ query=$('filter').value.trim();
+ searchTerms=parseSearch(query);
+ minSize=BigInt($('min-size').value);
+ directoryStats=null;
+ refreshRank();
+ if(document.body.dataset.mode==='folders')refreshDirectoryRank();
+}
+let filterTimer;
+function runSearch(){clearTimeout(filterTimer);applyFilters();setMode('search');}
+$('run-search').addEventListener('click',runSearch);
+$('filter').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing)runSearch();});
+function queueSearch(){
+ clearTimeout(filterTimer);
+ filterTimer=setTimeout(()=>{
+  applyFilters();
+  if(searchTerms.length&&document.body.dataset.mode==='explorer')setMode('split');
+ },180);
+}
+$('filter').addEventListener('input',e=>{
+ if(e.isComposing)clearTimeout(filterTimer);
+ else queueSearch();
+});
+$('filter').addEventListener('compositionend',queueSearch);
+$('min-size').addEventListener('change',()=>{clearTimeout(filterTimer);applyFilters();});
+$('clear-filter').addEventListener('click',()=>{clearTimeout(filterTimer);$('filter').value='';$('min-size').value='0';applyFilters();});
+$('include-descendants').addEventListener('change',()=>refreshFolder(selectedFolder));
 $('back').addEventListener('click',()=>{if(historyIndex>0){current=history[--historyIndex];selectedFolder=-1;refreshFolder();}});$('forward').addEventListener('click',()=>{if(historyIndex<history.length-1){current=history[++historyIndex];selectedFolder=-1;refreshFolder();}});$('up').addEventListener('click',()=>{if(current>=0)navigate(nodes[current][0]);});
 $('address').addEventListener('keydown',e=>{if(e.key!=='Enter')return;const entered=$('address').value.replace(/[\\/]+$/,'').toLocaleLowerCase();let match=-1;for(let i=0;i<nodes.length;i++)if(!deleted.has(i)&&nodes[i][2]&&path(i).replace(/[\\/]+$/,'').toLocaleLowerCase()===entered){match=i;break;}if(match>=0)navigate(match);else notify('这个目录不在本次扫描记录中');});
 $('size-copy').addEventListener('click',()=>selectedSize>=0?copy(path(selectedSize)):notify('请先选择文件'));$('folder-copy').addEventListener('click',()=>current>=0&&copy(path(selectedFolder>=0?selectedFolder:current)));$('dialog-copy').addEventListener('click',()=>dialogFile>=0&&copy(path(dialogFile)));$('dialog-close').addEventListener('click',()=>$('file-dialog').close());
