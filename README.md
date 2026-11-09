@@ -2,6 +2,8 @@
 
 **Find large files and folders on Windows, then explore the results in a self-contained offline HTML report.**
 
+**Keywords:** File size · Large files · Large file finder · Disk space saving · Disk cleanup
+
 [简体中文](README.zh-CN.md) · [Download source ZIP](https://github.com/Shizao315/disk-inventory/archive/refs/heads/main.zip) · [Download offline demo](https://raw.githubusercontent.com/Shizao315/disk-inventory/main/examples/offline-demo.html) · [Report an issue](https://github.com/Shizao315/disk-inventory/issues)
 
 [![Windows build and test](https://github.com/Shizao315/disk-inventory/actions/workflows/windows.yml/badge.svg)](https://github.com/Shizao315/disk-inventory/actions/workflows/windows.yml) · [MIT license](LICENSE)

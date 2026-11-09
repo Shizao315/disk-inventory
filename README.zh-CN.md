@@ -2,6 +2,8 @@
 
 **找出 Windows 磁盘中的大文件、大文件夹，并把结果保存为可交互的离线 HTML。**
 
+**检索关键词：** 文件大小 · 大文件 · 大文件查找 · 节省空间 · 清理磁盘
+
 [English](README.md) · [下载最新源码 ZIP](https://github.com/Shizao315/disk-inventory/archive/refs/heads/main.zip) · [下载离线演示](https://raw.githubusercontent.com/Shizao315/disk-inventory/main/examples/offline-demo.html) · [反馈问题](https://github.com/Shizao315/disk-inventory/issues)
 
 [![Windows build and test](https://github.com/Shizao315/disk-inventory/actions/workflows/windows.yml/badge.svg)](https://github.com/Shizao315/disk-inventory/actions/workflows/windows.yml) · [MIT 许可证](LICENSE)
