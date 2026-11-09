@@ -34,11 +34,19 @@ struct Inventory {
 };
 static std::atomic<bool> cancelScan{false},running{false};
 static std::atomic<uint64_t> progressFiles{0},progressDirs{0};
-static HWND mainWindow,rootEdit,outEdit,hiddenCheck,statusText,scanButton,cancelButton,openButton,adminButton;
+static HWND mainWindow,rootEdit,outEdit,hiddenCheck,statusText,cancelButton,openButton,adminButton;
 static HFONT uiFont;
 static std::wstring lastOutput;
 static Options activeOptions;
 static std::string lastFailure;
+static constexpr DWORD windowStyle = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
+static constexpr int minClientWidth = 600;
+static constexpr int minClientHeight = 375;
+static constexpr int titleId = 112;
+static constexpr int rootLabelId = 113;
+static constexpr int outputLabelId = 114;
+static constexpr int reportFolderId = 115;
+static constexpr int clearRootsId = 116;
 
 static std::string utf8(const std::wstring& s) {
  if(s.empty())return {}; int n=WideCharToMultiByte(CP_UTF8,0,s.data(),(int)s.size(),nullptr,0,nullptr,nullptr);
@@ -221,29 +229,223 @@ static std::wstring editText(HWND h){int len=GetWindowTextLengthW(h);std::wstrin
 static void addRoots(Options& o,const std::wstring& text){size_t pos=0;while(pos<text.size()){size_t end=text.find(L'\n',pos);auto part=text.substr(pos,end==std::wstring::npos?end:end-pos);if(!part.empty()&&part.back()==L'\r')part.pop_back();if(!part.empty())o.roots.push_back(part);if(end==std::wstring::npos)break;pos=end+1;}}
 static std::wstring defaultOutput(){wchar_t dir[32768];GetModuleFileNameW(nullptr,dir,32768);std::wstring base=dir;base=base.substr(0,base.find_last_of(L'\\'));SYSTEMTIME s;GetLocalTime(&s);wchar_t name[80];swprintf(name,80,L"DiskInventory-%04u%02u%02u-%02u%02u%02u.html",s.wYear,s.wMonth,s.wDay,s.wHour,s.wMinute,s.wSecond);return join(base,name);}
 static DWORD WINAPI scanThread(void*){try{Inventory inv=scan(activeOptions);saveReport(inv,activeOptions);lastOutput=activeOptions.output;lastFailure.clear();}catch(const std::exception&e){lastFailure=e.what();}running=false;PostMessageW(mainWindow,WM_APP+1,0,0);return 0;}
-static HWND control(const wchar_t* cls,const wchar_t* text,DWORD style,int x,int y,int w,int h,int id){HWND c=CreateWindowExW(cls==std::wstring(L"EDIT")?WS_EX_CLIENTEDGE:0,cls,text,WS_CHILD|WS_VISIBLE|style,x,y,w,h,mainWindow,(HMENU)(INT_PTR)id,GetModuleHandleW(nullptr),nullptr);SendMessageW(c,WM_SETFONT,(WPARAM)uiFont,TRUE);return c;}
+static HWND control(const wchar_t* cls, const wchar_t* text, DWORD style, int id) {
+ HWND child = CreateWindowExW(wcscmp(cls, L"EDIT") == 0 ? WS_EX_CLIENTEDGE : 0,
+     cls, text, WS_CHILD | WS_VISIBLE | style, 0, 0, 0, 0,
+     mainWindow, (HMENU)(INT_PTR)id, GetModuleHandleW(nullptr), nullptr);
+ SendMessageW(child, WM_SETFONT, (WPARAM)uiFont, TRUE);
+ return child;
+}
+
+static void appendScanFolders(const std::vector<std::wstring>& paths) {
+ std::wstring text = editText(rootEdit);
+ Options listed;
+ addRoots(listed, text);
+ for(auto& path : listed.roots) {
+  try { path = normalize(path); }
+  catch(const std::runtime_error&) { /* Leave manually entered paths for scan validation. */ }
+ }
+ size_t added = 0;
+ for(const auto& path : paths) {
+  const auto normalized = normalize(path);
+  const DWORD attrs = GetFileAttributesW(extended(normalized).c_str());
+  if(attrs == INVALID_FILE_ATTRIBUTES || !(attrs & FILE_ATTRIBUTE_DIRECTORY)) continue;
+  const auto samePath = [&normalized](const std::wstring& old) { return equalPath(old, normalized); };
+  if(std::any_of(listed.roots.begin(), listed.roots.end(), samePath)) continue;
+  if(!text.empty() && text.back() != L'\n') text += L"\r\n";
+  text += normalized;
+  listed.roots.push_back(normalized);
+  ++added;
+ }
+ if(added) {
+  SetWindowTextW(rootEdit, text.c_str());
+  SetWindowTextW(statusText, (L"已添加 " + std::to_wstring(added) + L" 个扫描目录。").c_str());
+ } else {
+  SetWindowTextW(statusText, L"没有新增目录。请选择或拖入文件夹。");
+ }
+}
+
+static void layoutWindow(HWND window) {
+ RECT client{};
+ GetClientRect(window, &client);
+ const int width = client.right;
+ const int height = client.bottom;
+ const int margin = 20;
+ const int right = width - margin;
+ const int sideButtonX = right - 150;
+ const int editWidth = sideButtonX - margin - 12;
+ const int pathsY = 76;
+ const int statusY = height - 56;
+ const int actionsY = statusY - 50;
+ const int outputY = actionsY - 47;
+ const int optionsY = outputY - 63;
+ const int pathsHeight = optionsY - pathsY - 10;
+
+ auto place = [window](int id, int x, int y, int w, int h) {
+  MoveWindow(GetDlgItem(window, id), x, y, w, h, TRUE);
+ };
+ place(titleId, margin, 18, right - margin, 28);
+ place(rootLabelId, margin, 52, editWidth, 24);
+ place(clearRootsId, sideButtonX, 46, 150, 25);
+ place(101, margin, pathsY, editWidth, pathsHeight);
+ place(102, sideButtonX, pathsY, 150, 33);
+ place(103, sideButtonX, pathsY + 39, 150, 33);
+ place(104, margin, optionsY + 3, 310, 26);
+ place(105, right - 206, optionsY, 206, 31);
+ place(outputLabelId, margin, outputY - 27, right - margin, 23);
+ place(106, margin, outputY + 1, editWidth, 29);
+ place(107, sideButtonX, outputY, 150, 31);
+ place(108, margin, actionsY, 184, 38);
+ place(109, margin + 196, actionsY, 100, 38);
+ place(110, margin + 308, actionsY, 105, 38);
+ place(reportFolderId, margin + 425, actionsY, 133, 38);
+ place(111, margin, statusY, right - margin, 45);
+}
+
+static void setScanControls(HWND window, bool busy, bool reportAvailable) {
+ for(int id : {101, 102, 103, 104, 106, 107, 108, clearRootsId}) {
+  EnableWindow(GetDlgItem(window, id), !busy);
+ }
+ EnableWindow(adminButton, !busy && !isAdmin());
+ EnableWindow(cancelButton, busy);
+ EnableWindow(openButton, !busy && reportAvailable);
+ EnableWindow(GetDlgItem(window, reportFolderId), !busy && reportAvailable);
+ DragAcceptFiles(window, !busy);
+}
+
 static LRESULT CALLBACK windowProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
  if(msg==WM_CREATE){mainWindow=h;uiFont=CreateFontW(-16,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Microsoft YaHei UI");
-  control(L"STATIC",L"磁盘文件清单  0.1 测试版",0,22,18,660,28,0);control(L"STATIC",L"扫描路径（每行一个，可填 C:\\ 或指定文件夹）",0,22,58,650,24,0);
-  rootEdit=control(L"EDIT",L"",ES_MULTILINE|ES_AUTOVSCROLL|WS_VSCROLL|WS_TABSTOP,22,86,550,74,101);
-  control(L"BUTTON",L"选择文件夹…",WS_TABSTOP,586,86,150,33,102);control(L"BUTTON",L"全部本地磁盘",WS_TABSTOP,586,126,150,33,103);
-  hiddenCheck=control(L"BUTTON",L"包含隐藏文件和文件夹",BS_AUTOCHECKBOX|WS_TABSTOP,22,174,310,26,104);
-  adminButton=control(L"BUTTON",isAdmin()?L"当前已是管理员":L"以管理员重启…",WS_TABSTOP,530,171,206,31,105);if(isAdmin())EnableWindow(adminButton,FALSE);
-  control(L"STATIC",L"离线 HTML 输出位置",0,22,218,600,23,0);outEdit=control(L"EDIT",defaultOutput().c_str(),ES_AUTOHSCROLL|WS_TABSTOP,22,246,550,29,106);control(L"BUTTON",L"另存为…",WS_TABSTOP,586,245,150,31,107);
-  scanButton=control(L"BUTTON",L"开始扫描并生成报告",WS_TABSTOP|BS_DEFPUSHBUTTON,22,295,228,38,108);cancelButton=control(L"BUTTON",L"取消扫描",WS_TABSTOP,264,295,130,38,109);EnableWindow(cancelButton,FALSE);openButton=control(L"BUTTON",L"打开报告",WS_TABSTOP,408,295,130,38,110);EnableWindow(openButton,FALSE);
-  statusText=control(L"STATIC",L"请选择路径。仅采集元数据，不读取文件正文。",0,22,350,714,45,111);SetTimer(h,1,250,nullptr);return 0;
+  control(L"STATIC", L"磁盘文件清单  0.1 测试版", 0, titleId);
+  control(L"STATIC", L"扫描路径（每行一个，也可拖入文件夹）", 0, rootLabelId);
+  control(L"BUTTON", L"清空路径", WS_TABSTOP, clearRootsId);
+  rootEdit = control(L"EDIT", L"", ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL | WS_TABSTOP, 101);
+  control(L"BUTTON", L"添加文件夹…", WS_TABSTOP, 102);
+  control(L"BUTTON", L"全部本地磁盘", WS_TABSTOP, 103);
+  hiddenCheck = control(L"BUTTON", L"包含隐藏文件和文件夹", BS_AUTOCHECKBOX | WS_TABSTOP, 104);
+  adminButton = control(L"BUTTON", isAdmin() ? L"当前已是管理员" : L"以管理员重启…", WS_TABSTOP, 105);
+  if(isAdmin()) EnableWindow(adminButton, FALSE);
+  control(L"STATIC", L"离线 HTML 输出位置", 0, outputLabelId);
+  outEdit = control(L"EDIT", defaultOutput().c_str(), ES_AUTOHSCROLL | WS_TABSTOP, 106);
+  control(L"BUTTON", L"另存为…", WS_TABSTOP, 107);
+  control(L"BUTTON", L"开始扫描并生成报告", WS_TABSTOP | BS_DEFPUSHBUTTON, 108);
+  cancelButton = control(L"BUTTON", L"取消扫描", WS_TABSTOP, 109);
+  openButton = control(L"BUTTON", L"打开报告", WS_TABSTOP, 110);
+  HWND reportFolder = control(L"BUTTON", L"打开报告目录", WS_TABSTOP, reportFolderId);
+  EnableWindow(cancelButton, FALSE);
+  EnableWindow(openButton, FALSE);
+  EnableWindow(reportFolder, FALSE);
+  statusText = control(L"STATIC", L"请选择路径。仅采集元数据，不读取文件正文。", 0, 111);
+  layoutWindow(h);
+  DragAcceptFiles(h, TRUE);
+  SetTimer(h, 1, 250, nullptr);
+  return 0;
+ }
+ if(msg == WM_GETMINMAXINFO) {
+  RECT minimum{0, 0, minClientWidth, minClientHeight};
+  AdjustWindowRectEx(&minimum, windowStyle, FALSE, 0);
+  auto* limits = reinterpret_cast<MINMAXINFO*>(lp);
+  limits->ptMinTrackSize.x = minimum.right - minimum.left;
+  limits->ptMinTrackSize.y = minimum.bottom - minimum.top;
+  return 0;
+ }
+ if(msg == WM_SIZE) {
+  if(wp != SIZE_MINIMIZED) layoutWindow(h);
+  return 0;
+ }
+ if(msg == WM_DROPFILES) {
+  HDROP drop = reinterpret_cast<HDROP>(wp);
+  if(!running) {
+   try {
+    std::vector<std::wstring> paths;
+    const UINT count = DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
+    for(UINT i = 0; i < count; ++i) {
+     const UINT length = DragQueryFileW(drop, i, nullptr, 0);
+     if(!length) continue;
+     std::wstring path(length + 1, L'\0');
+     const UINT copied = DragQueryFileW(drop, i, path.data(), length + 1);
+     if(copied) {
+      path.resize(copied);
+      paths.push_back(std::move(path));
+     }
+    }
+    appendScanFolders(paths);
+   } catch(const std::exception&) {
+    SetWindowTextW(statusText, L"无法读取拖入的文件夹路径。");
+   }
+  }
+  DragFinish(drop);
+  return 0;
  }
  if(msg==WM_TIMER&&running){auto s=L"扫描中："+std::to_wstring(progressFiles.load())+L" 个文件，"+std::to_wstring(progressDirs.load())+L" 个文件夹。取消后仍会保存部分报告。";SetWindowTextW(statusText,s.c_str());return 0;}
- if(msg==WM_APP+1){EnableWindow(scanButton,TRUE);EnableWindow(rootEdit,TRUE);EnableWindow(outEdit,TRUE);EnableWindow(hiddenCheck,TRUE);EnableWindow(cancelButton,FALSE);EnableWindow(openButton,lastFailure.empty());if(lastFailure.empty()){SetWindowTextW(statusText,(L"报告已生成："+lastOutput).c_str());}else{SetWindowTextW(statusText,L"生成失败；详细信息见提示。");MessageBoxW(h,wide(lastFailure).c_str(),L"扫描或写入失败",MB_OK|MB_ICONERROR);}return 0;}
+ if(msg == WM_APP + 1) {
+  setScanControls(h, false, lastFailure.empty());
+  if(lastFailure.empty()) {
+   SetWindowTextW(statusText, (L"报告已生成：" + lastOutput).c_str());
+  } else {
+   SetWindowTextW(statusText, L"生成失败；详细信息见提示。");
+   MessageBoxW(h, wide(lastFailure).c_str(), L"扫描或写入失败", MB_OK | MB_ICONERROR);
+  }
+  return 0;
+ }
  if(msg==WM_COMMAND){int id=LOWORD(wp);
   if(running&&id!=109)return 0;
-  if(id==102){BROWSEINFOW bi{};bi.hwndOwner=h;bi.lpszTitle=L"选择扫描文件夹或磁盘";bi.ulFlags=BIF_RETURNONLYFSDIRS|BIF_NEWDIALOGSTYLE;PIDLIST_ABSOLUTE pid=SHBrowseForFolderW(&bi);if(pid){wchar_t path[32768];if(SHGetPathFromIDListW(pid,path))SetWindowTextW(rootEdit,path);CoTaskMemFree(pid);}}
+  if(id == 102) {
+   BROWSEINFOW browse{};
+   browse.hwndOwner = h;
+   browse.lpszTitle = L"添加扫描文件夹或磁盘";
+   browse.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+   PIDLIST_ABSOLUTE selected = SHBrowseForFolderW(&browse);
+   if(selected) {
+    wchar_t path[MAX_PATH];
+    const BOOL found = SHGetPathFromIDListW(selected, path);
+    CoTaskMemFree(selected);
+    if(found) {
+     try { appendScanFolders({path}); }
+     catch(const std::exception&) { SetWindowTextW(statusText, L"无法添加所选文件夹。"); }
+    }
+   }
+  }
+  if(id == clearRootsId) {
+   SetWindowTextW(rootEdit, L"");
+   SetFocus(rootEdit);
+   SetWindowTextW(statusText, L"扫描路径已清空。");
+  }
   if(id==103){std::wstring roots;DWORD bits=GetLogicalDrives();for(int i=0;i<26;i++)if(bits&(1u<<i)){std::wstring p;p+=wchar_t(L'A'+i);p+=L":\\";if(GetDriveTypeW(p.c_str())==DRIVE_FIXED){if(!roots.empty())roots+=L"\r\n";roots+=p;}}SetWindowTextW(rootEdit,roots.c_str());}
   if(id==105){std::wstring exe(32768,L'\0');exe.resize(GetModuleFileNameW(nullptr,exe.data(),(DWORD)exe.size()));std::wstring args=L"--gui";Options saved;addRoots(saved,editText(rootEdit));for(const auto&r:saved.roots)args+=L" --root \""+r+(r.back()==L'\\'?L"\\":L"")+L"\"";args+=L" --output \""+editText(outEdit)+L"\"";if(SendMessageW(hiddenCheck,BM_GETCHECK,0,0)==BST_CHECKED)args+=L" --include-hidden";auto result=(INT_PTR)ShellExecuteW(h,L"runas",exe.c_str(),args.c_str(),nullptr,SW_SHOWNORMAL);if(result>32)DestroyWindow(h);else SetWindowTextW(statusText,L"未提权，仍可直接开始普通扫描。");}
   if(id==107){wchar_t path[32768]{};auto text=editText(outEdit);wcsncpy(path,text.c_str(),32767);OPENFILENAMEW of{};of.lStructSize=sizeof(of);of.hwndOwner=h;of.lpstrFilter=L"离线 HTML 报告\0*.html\0\0";of.lpstrFile=path;of.nMaxFile=32768;of.lpstrDefExt=L"html";of.Flags=OFN_OVERWRITEPROMPT|OFN_NOCHANGEDIR;if(GetSaveFileNameW(&of))SetWindowTextW(outEdit,path);}
-  if(id==108){try{activeOptions=Options{};addRoots(activeOptions,editText(rootEdit));activeOptions.output=editText(outEdit);activeOptions.hidden=SendMessageW(hiddenCheck,BM_GETCHECK,0,0)==BST_CHECKED;cleanOptions(activeOptions);if(GetFileAttributesW(extended(activeOptions.output).c_str())!=INVALID_FILE_ATTRIBUTES&&MessageBoxW(h,L"输出报告已经存在，是否覆盖？",L"覆盖报告",MB_YESNO|MB_ICONQUESTION)!=IDYES)return 0;cancelScan=false;progressFiles=0;progressDirs=0;running=true;EnableWindow(scanButton,FALSE);EnableWindow(openButton,FALSE);EnableWindow(rootEdit,FALSE);EnableWindow(outEdit,FALSE);EnableWindow(hiddenCheck,FALSE);EnableWindow(cancelButton,TRUE);HANDLE worker=CreateThread(nullptr,0,scanThread,nullptr,0,nullptr);if(worker)CloseHandle(worker);else{running=false;throw std::runtime_error("Cannot start scan thread");}}catch(const std::exception&e){MessageBoxW(h,wide(e.what()).c_str(),L"无法开始",MB_OK|MB_ICONERROR);}}
+  if(id == 108) {
+   try {
+    activeOptions = Options{};
+    addRoots(activeOptions, editText(rootEdit));
+    activeOptions.output = editText(outEdit);
+    activeOptions.hidden = SendMessageW(hiddenCheck, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    cleanOptions(activeOptions);
+    if(GetFileAttributesW(extended(activeOptions.output).c_str()) != INVALID_FILE_ATTRIBUTES &&
+       MessageBoxW(h, L"输出报告已经存在，是否覆盖？", L"覆盖报告", MB_YESNO | MB_ICONQUESTION) != IDYES) return 0;
+    cancelScan = false;
+    progressFiles = 0;
+    progressDirs = 0;
+    running = true;
+    setScanControls(h, true, false);
+    HANDLE worker = CreateThread(nullptr, 0, scanThread, nullptr, 0, nullptr);
+    if(!worker) {
+     running = false;
+     setScanControls(h, false, !lastOutput.empty());
+     throw std::runtime_error("Cannot start scan thread");
+    }
+    CloseHandle(worker);
+   } catch(const std::exception& e) {
+    MessageBoxW(h, wide(e.what()).c_str(), L"无法开始", MB_OK | MB_ICONERROR);
+   }
+  }
   if(id==109){cancelScan=true;SetWindowTextW(statusText,L"正在停止扫描并保存部分报告…");}
-  if(id==110&&!lastOutput.empty())ShellExecuteW(h,L"open",lastOutput.c_str(),nullptr,nullptr,SW_SHOWNORMAL);return 0;
+  if(id==110&&!lastOutput.empty())ShellExecuteW(h,L"open",lastOutput.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+  if(id == reportFolderId && !lastOutput.empty()) {
+   const auto folder = lastOutput.substr(0, lastOutput.find_last_of(L'\\') + 1);
+   const auto result = reinterpret_cast<INT_PTR>(ShellExecuteW(h, L"open", folder.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
+   if(result <= 32) SetWindowTextW(statusText, L"无法打开报告所在目录。");
+  }
+  return 0;
  }
  if(msg==WM_CLOSE){if(running){cancelScan=true;SetWindowTextW(statusText,L"请等待部分报告保存完成后再关闭。");return 0;}DestroyWindow(h);return 0;}
  if(msg==WM_DESTROY){KillTimer(h,1);if(uiFont)DeleteObject(uiFont);PostQuitMessage(0);return 0;}return DefWindowProcW(h,msg,wp,lp);
@@ -256,7 +458,9 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
   LocalFree(argv);argv=nullptr;
   if(!gui){AttachConsole(ATTACH_PARENT_PROCESS);cleanOptions(o);auto inv=scan(o);saveReport(inv,o);logLine(L"Report: "+o.output+L"; files="+std::to_wstring(inv.files)+L"; directories="+std::to_wstring(inv.folders));return inv.cancelled?3:inv.errors?2:0;}
   CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);SetProcessDPIAware();WNDCLASSW wc{};wc.lpfnWndProc=windowProc;wc.hInstance=instance;wc.lpszClassName=L"DiskInventoryWindow";wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);wc.hbrBackground=(HBRUSH)(COLOR_WINDOW+1);RegisterClassW(&wc);
-  HWND win=CreateWindowExW(0,wc.lpszClassName,L"磁盘文件清单 · 离线 HTML 扫描器",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,780,455,nullptr,nullptr,instance,nullptr);
+  RECT initial{0, 0, 758, 412};
+  AdjustWindowRectEx(&initial, windowStyle, FALSE, 0);
+  HWND win=CreateWindowExW(0,wc.lpszClassName,L"磁盘文件清单 · 离线 HTML 扫描器",windowStyle,CW_USEDEFAULT,CW_USEDEFAULT,initial.right-initial.left,initial.bottom-initial.top,nullptr,nullptr,instance,nullptr);
   if(!win)throw std::runtime_error("Cannot create window");if(!o.roots.empty()){std::wstring roots;for(auto&r:o.roots){if(!roots.empty())roots+=L"\r\n";roots+=r;}SetWindowTextW(rootEdit,roots.c_str());}SetWindowTextW(outEdit,o.output.c_str());if(o.hidden)SendMessageW(hiddenCheck,BM_SETCHECK,BST_CHECKED,0);ShowWindow(win,show);MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){if(!IsDialogMessageW(win,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}CoUninitialize();return 0;
  }catch(const std::exception&e){if(argv)LocalFree(argv);AttachConsole(ATTACH_PARENT_PROCESS);logLine(L"Error: "+wide(e.what()));if(gui)MessageBoxW(nullptr,wide(e.what()).c_str(),L"错误",MB_OK|MB_ICONERROR);return 1;}
 }

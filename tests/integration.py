@@ -151,6 +151,7 @@ class ScannerIntegration(unittest.TestCase):
     def test_native_gui_generates_report(self):
         from ctypes import wintypes
         user = ctypes.WinDLL('user32', use_last_error=True)
+        user.SetProcessDPIAware()
         callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         user.EnumWindows.argtypes = [callback_type, wintypes.LPARAM]
         user.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
@@ -161,6 +162,16 @@ class ScannerIntegration(unittest.TestCase):
         user.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
         user.IsWindowEnabled.argtypes = [wintypes.HWND]
         user.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        user.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+        user.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        user.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
+                                     ctypes.c_int, ctypes.c_int, wintypes.UINT]
+
+        def rect(hwnd):
+            bounds = wintypes.RECT()
+            self.assertTrue(user.GetWindowRect(hwnd, ctypes.byref(bounds)))
+            return bounds
+
         report = OUT / ('gui-' + self.root.name + '.html')
         startup = subprocess.STARTUPINFO()
         startup.dwFlags = subprocess.STARTF_USESHOWWINDOW
@@ -186,6 +197,26 @@ class ScannerIntegration(unittest.TestCase):
                 time.sleep(0.05)
             self.assertIsNotNone(window, 'Native GUI window did not initialize')
             root_control = user.GetDlgItem(window, 101)
+            output_control = user.GetDlgItem(window, 106)
+            browse_control = user.GetDlgItem(window, 102)
+            status_control = user.GetDlgItem(window, 111)
+            resize_styles = 0x00040000 | 0x00010000  # WS_THICKFRAME and WS_MAXIMIZEBOX
+            self.assertEqual(user.GetWindowLongW(window, -16) & resize_styles, resize_styles)
+            self.assertTrue(user.GetWindowLongW(window, -20) & 0x10)  # WS_EX_ACCEPTFILES
+            frame = rect(window)
+            width, height = frame.right - frame.left, frame.bottom - frame.top
+            root, output = rect(root_control), rect(output_control)
+            browse, status = rect(browse_control), rect(status_control)
+            keep_position = 0x0002 | 0x0004 | 0x0010  # SWP_NOMOVE, SWP_NOZORDER, SWP_NOACTIVATE
+            self.assertTrue(user.SetWindowPos(window, None, 0, 0, width + 160, height + 80, keep_position))
+            self.assertEqual(rect(root_control).right, root.right + 160)
+            self.assertEqual(rect(root_control).bottom, root.bottom + 80)
+            self.assertEqual(rect(output_control).right, output.right + 160)
+            self.assertEqual(rect(browse_control).left, browse.left + 160)
+            self.assertEqual(rect(status_control).top, status.top + 80)
+            self.assertTrue(user.SetWindowPos(window, None, 0, 0, width, height, keep_position))
+            self.assertEqual(rect(root_control).right, root.right)
+            self.assertEqual(rect(root_control).bottom, root.bottom)
             buffer = ctypes.create_unicode_buffer(32768)
             for _ in range(100):
                 user.SendMessageW(root_control, 0x0D, len(buffer), ctypes.cast(buffer, ctypes.c_void_p).value)
@@ -193,6 +224,10 @@ class ScannerIntegration(unittest.TestCase):
                     break
                 time.sleep(0.05)
             self.assertEqual(buffer.value, str(self.root / 'empty'))
+            self.assertFalse(user.IsWindowEnabled(user.GetDlgItem(window, 115)))
+            user.SendMessageW(window, 0x111, 116, 0)
+            self.assertEqual(user.SendMessageW(root_control, 0x0E, 0, 0), 0)
+            user.SendMessageW(root_control, 0x0C, 0, ctypes.cast(buffer, ctypes.c_void_p).value)
             user.SendMessageW(window, 0x111, 108, 0)
             for _ in range(200):
                 if report.exists() and user.IsWindowEnabled(user.GetDlgItem(window, 110)):
@@ -200,6 +235,7 @@ class ScannerIntegration(unittest.TestCase):
                 time.sleep(0.05)
             self.assertTrue(report.exists(), 'GUI start button did not generate report')
             self.assertTrue(user.IsWindowEnabled(user.GetDlgItem(window, 110)))
+            self.assertTrue(user.IsWindowEnabled(user.GetDlgItem(window, 115)))
             self.assertEqual(len(read_report(report)['nodes']), 1)
             user.PostMessageW(window, 0x10, 0, 0)
             self.assertEqual(proc.wait(timeout=10), 0)
